@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+gradio.out.log
+gradio.err.log
+.venv/
+venv/
