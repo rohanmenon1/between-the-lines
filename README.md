@@ -12,7 +12,6 @@ tags:
   - backyard-ai
   - tiny-titan
   - well-tuned
-  - llama-cpp
   - code
 ---
 
@@ -22,7 +21,7 @@ A small-model code-reading assistant for Python files. It parses a single file d
 
 The app includes two modes:
 
-- **Base Mellum2:** richer comments from the base instruct model through llama.cpp.
+- **Base Mellum2:** richer comments from the base instruct model through Transformers.
 - **Fine-tuned LoRA:** a concise comment style trained on CodeSearchNet-derived Python examples with Modal.
 
 The model never edits code directly. It only proposes comments, and the app rejects any annotated file whose semantic AST changes.
@@ -48,7 +47,7 @@ npx between-the-lines-cli path/to/file.py --model base --output annotated.py
 npx between-the-lines-cli path/to/file.py --model tuned --in-place
 ```
 
-`--model base` uses the richer Mellum2 GGUF path. `--model tuned` uses the LoRA adapter for shorter comments. Both modes run the AST validation before writing output.
+`--model base` uses the richer Mellum2 instruct path. `--model tuned` uses the LoRA adapter for shorter comments. Both modes run the AST validation before writing output.
 
 ## Hackathon Fit
 

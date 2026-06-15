@@ -7,6 +7,17 @@ import gradio as gr
 from btl.annotate import annotate_python, collect_blocks, parse_python
 from btl.model import ModelUnavailableError
 
+try:
+    import spaces
+except ImportError:
+    spaces = None
+
+
+def zero_gpu_task(fn):
+    if spaces is None:
+        return fn
+    return spaces.GPU(duration=180)(fn)
+
 
 CSS = """
 :root {
@@ -161,6 +172,7 @@ MODEL_LABELS = {
 }
 
 
+@zero_gpu_task
 def annotate_code(source: str, model_label: str) -> tuple[str, str, str]:
     try:
         result = annotate_python(source, MODEL_LABELS.get(model_label, "base"))

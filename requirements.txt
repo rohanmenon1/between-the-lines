@@ -1,11 +1,10 @@
 gradio==5.50.0
 huggingface_hub
-llama-cpp-python
-datasets==2.21.0
 truststore
 accelerate
 bitsandbytes
 peft
 safetensors
+spaces
 torch
 git+https://github.com/huggingface/transformers.git
