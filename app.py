@@ -260,6 +260,7 @@ def build_app() -> gr.Blocks:
                 annotate_code,
                 inputs=[input_code, model_choice],
                 outputs=[summary, output_code, status],
+                api_name="annotate",
             )
             upload_file.upload(
                 load_uploaded_python,

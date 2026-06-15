@@ -8,6 +8,7 @@ artifacts/
 .space-upload/
 .hf-xet/
 .hf-home/
+.npm-cache/
 master-plan.md
 data/raw/*
 data/processed/*

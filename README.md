@@ -29,20 +29,23 @@ The model never edits code directly. It only proposes comments, and the app reje
 
 ## CLI Usage
 
-The same annotation pipeline is available from the command line:
+Use the hosted Space from Node/npm without installing anything:
 
 ```bash
-pip install -e .
-between-the-lines path/to/file.py --model base --output annotated.py --summary
-btl path/to/file.py --check --summary
+npx between-the-lines-cli path/to/file.py --model base --summary
 ```
 
-You can also run it without installing a console command:
+By default, this creates an annotated sibling file next to the input:
+
+```text
+path/to/file.annotated.py
+```
+
+You can also choose an output path or replace the input file:
 
 ```bash
-python -m btl.cli path/to/file.py --model base --output annotated.py --summary
-python -m btl.cli path/to/file.py --model tuned --in-place
-python -m btl.cli path/to/file.py --check --summary
+npx between-the-lines-cli path/to/file.py --model base --output annotated.py
+npx between-the-lines-cli path/to/file.py --model tuned --in-place
 ```
 
 `--model base` uses the richer Mellum2 GGUF path. `--model tuned` uses the LoRA adapter for shorter comments. Both modes run the AST validation before writing output.

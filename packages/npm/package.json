@@ -1,0 +1,29 @@
+{
+  "name": "between-the-lines-cli",
+  "version": "0.1.0",
+  "description": "CLI client for the hosted between-the-lines Python annotator.",
+  "type": "module",
+  "bin": {
+    "between-the-lines": "./src/cli.js",
+    "btl": "./src/cli.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@gradio/client": "^1.15.0"
+  },
+  "keywords": [
+    "huggingface",
+    "gradio",
+    "python",
+    "ast",
+    "code-comments",
+    "cli"
+  ],
+  "license": "MIT"
+}

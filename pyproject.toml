@@ -21,9 +21,5 @@ dependencies = [
     "truststore",
 ]
 
-[project.scripts]
-between-the-lines = "btl.cli:main"
-btl = "btl.cli:main"
-
 [tool.setuptools.packages.find]
 include = ["btl*"]
