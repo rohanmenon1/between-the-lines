@@ -8,7 +8,7 @@ from .prompts import build_comment_messages
 DEFAULT_MODEL_REPO = "JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q8_0"
 DEFAULT_MODEL_FILE = "Mellum2-12B-A2.5B-Instruct-Q8_0.gguf"
 DEFAULT_BASE_TRANSFORMERS_MODEL = "JetBrains/Mellum2-12B-A2.5B-Instruct"
-DEFAULT_TUNED_ADAPTER_REPO = "rohanmenon1/between-the-lines-mellum2-lora"
+DEFAULT_TUNED_ADAPTER_REPO = "coolbeanz79/between-the-lines-mellum2-lora"
 
 ModelVariant = Literal["base", "tuned"]
 

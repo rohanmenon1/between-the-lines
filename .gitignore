@@ -5,6 +5,9 @@ gradio.err.log
 .venv/
 venv/
 artifacts/
+.space-upload/
+.hf-xet/
+.hf-home/
 master-plan.md
 data/raw/*
 data/processed/*
