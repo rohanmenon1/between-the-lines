@@ -16,7 +16,7 @@ except ImportError:
 def zero_gpu_task(fn):
     if spaces is None:
         return fn
-    return spaces.GPU(duration=180)(fn)
+    return spaces.GPU(duration=120)(fn)
 
 
 CSS = """
