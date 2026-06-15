@@ -4,3 +4,11 @@ gradio.out.log
 gradio.err.log
 .venv/
 venv/
+artifacts/
+master-plan.md
+data/raw/*
+data/processed/*
+data/eval/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/eval/.gitkeep
