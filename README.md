@@ -32,6 +32,14 @@ The model never edits code directly. It only proposes comments, and the app reje
 The same annotation pipeline is available from the command line:
 
 ```bash
+pip install -e .
+between-the-lines path/to/file.py --model base --output annotated.py --summary
+btl path/to/file.py --check --summary
+```
+
+You can also run it without installing a console command:
+
+```bash
 python -m btl.cli path/to/file.py --model base --output annotated.py --summary
 python -m btl.cli path/to/file.py --model tuned --in-place
 python -m btl.cli path/to/file.py --check --summary
