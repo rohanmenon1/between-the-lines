@@ -2,7 +2,7 @@ import ast
 from dataclasses import dataclass
 from typing import Literal
 
-from .model import ModelUnavailableError, generate_comment
+from .model import ModelUnavailableError, generate_comment, generate_file_summary
 
 
 ModelChoice = Literal["base", "tuned"]
@@ -71,6 +71,20 @@ def summarize_blocks(blocks: list[BlockInfo]) -> str:
     return f"This file defines {names}{overflow}."
 
 
+def generate_summary(source: str, blocks: list[BlockInfo], model_choice: ModelChoice = "base") -> tuple[str, list[str]]:
+    notes: list[str] = []
+    try:
+        summary = generate_file_summary(source, variant=model_choice)
+        if summary:
+            return summary, notes
+        notes.append("file summary: model returned an empty summary.")
+    except ModelUnavailableError:
+        raise
+    except Exception as exc:
+        notes.append(f"file summary: model generation failed ({type(exc).__name__}).")
+    return summarize_blocks(blocks), notes
+
+
 def insert_comments(source: str, comments: dict[int, str]) -> str:
     lines = source.splitlines()
     inserts: dict[int, list[str]] = {}
@@ -111,11 +125,15 @@ def annotate_python(source: str, model_choice: ModelChoice = "base") -> Annotati
         return AnnotationResult("", "", f"Syntax error on line {exc.lineno}: {exc.msg}", False, 0)
 
     blocks = collect_blocks(original_tree, source)
-    summary = summarize_blocks(blocks)
+    summary, summary_notes = generate_summary(source, blocks, model_choice)
     if not blocks:
-        return AnnotationResult(summary, source, "Parsed successfully. No classes or functions to annotate.", True, 0)
+        status = "Parsed successfully. No classes or functions to annotate."
+        if summary_notes:
+            status += "\n" + "\n".join(summary_notes)
+        return AnnotationResult(summary, source, status, True, 0, tuple(summary_notes))
 
     comments, generation_notes = generate_block_comments(blocks, model_choice)
+    generation_notes = summary_notes + generation_notes
     annotated = insert_comments(source, comments)
 
     try:

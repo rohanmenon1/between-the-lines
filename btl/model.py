@@ -2,7 +2,7 @@ import os
 from functools import lru_cache
 from typing import Literal
 
-from .prompts import build_comment_messages
+from .prompts import build_comment_messages, build_summary_messages
 
 
 DEFAULT_BASE_TRANSFORMERS_MODEL = "JetBrains/Mellum2-12B-A2.5B-Instruct"
@@ -66,6 +66,16 @@ def _clean_comment(text: str) -> str:
     return line[:240].rstrip()
 
 
+def _clean_summary(text: str) -> str:
+    cleaned = " ".join(line.strip().strip("`") for line in text.strip().splitlines() if line.strip())
+    if cleaned.startswith("Summary:"):
+        cleaned = cleaned.removeprefix("Summary:").strip()
+    cleaned = cleaned.strip('"').strip("'").strip()
+    if cleaned.startswith("#"):
+        cleaned = cleaned.lstrip("# ").strip()
+    return cleaned[:500].rstrip()
+
+
 @lru_cache(maxsize=1)
 def _load_tuned_model():
     adapter_path_or_repo = (
@@ -100,10 +110,39 @@ def generate_comment(kind: str, name: str, source: str, variant: ModelVariant = 
     return generate_comment_with_base_model(kind, name, source)
 
 
-def _generate_with_transformers(tokenizer, model, kind: str, name: str, source: str, max_length_env: str) -> str:
+def generate_file_summary(source: str, variant: ModelVariant = "base") -> str:
+    if variant == "tuned":
+        tokenizer, model = _load_tuned_model()
+        return _generate_text_with_transformers(
+            tokenizer,
+            model,
+            build_summary_messages(source),
+            "BTL_TUNED_MODEL_CTX",
+            max_new_tokens=120,
+            cleaner=_clean_summary,
+        )
+
+    tokenizer, model = _load_base_model()
+    return _generate_text_with_transformers(
+        tokenizer,
+        model,
+        build_summary_messages(source),
+        "BTL_MODEL_CTX",
+        max_new_tokens=120,
+        cleaner=_clean_summary,
+    )
+
+
+def _generate_text_with_transformers(
+    tokenizer,
+    model,
+    messages: list[dict[str, str]],
+    max_length_env: str,
+    max_new_tokens: int,
+    cleaner,
+) -> str:
     import torch
 
-    messages = build_comment_messages(kind, name, source)
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     encoded = tokenizer(
         prompt,
@@ -120,21 +159,32 @@ def _generate_with_transformers(tokenizer, model, kind: str, name: str, source: 
         output_ids = model.generate(
             **encoded,
             do_sample=False,
-            max_new_tokens=80,
+            max_new_tokens=max_new_tokens,
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )[0]
 
     generated_ids = output_ids[encoded["input_ids"].shape[-1] :]
     text = tokenizer.decode(generated_ids, skip_special_tokens=True)
-    return _clean_comment(text)
+    return cleaner(text)
+
+
+def _generate_comment_with_transformers(tokenizer, model, kind: str, name: str, source: str, max_length_env: str) -> str:
+    return _generate_text_with_transformers(
+        tokenizer,
+        model,
+        build_comment_messages(kind, name, source),
+        max_length_env,
+        max_new_tokens=80,
+        cleaner=_clean_comment,
+    )
 
 
 def generate_comment_with_base_model(kind: str, name: str, source: str) -> str:
     tokenizer, model = _load_base_model()
-    return _generate_with_transformers(tokenizer, model, kind, name, source, "BTL_MODEL_CTX")
+    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_MODEL_CTX")
 
 
 def generate_comment_with_tuned_model(kind: str, name: str, source: str) -> str:
     tokenizer, model = _load_tuned_model()
-    return _generate_with_transformers(tokenizer, model, kind, name, source, "BTL_TUNED_MODEL_CTX")
+    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_TUNED_MODEL_CTX")

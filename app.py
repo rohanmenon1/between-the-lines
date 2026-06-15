@@ -48,7 +48,8 @@ CSS = """
 }
 
 #btl-title {
-  padding: 22px 0 10px;
+  padding: 22px 0 12px;
+  text-align: center;
 }
 
 #btl-title h1 {
@@ -62,22 +63,72 @@ CSS = """
 #btl-title p {
   color: var(--btl-muted);
   font-size: 1.02rem;
+  line-height: 1.6;
+  max-width: 850px;
+  margin: 14px auto 0;
+}
+
+#btl-cli {
   max-width: 780px;
-  margin: 14px 0 0;
+  margin: 0 auto 22px;
+}
+
+#btl-cli .btl-cli-label {
+  color: var(--btl-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  margin: 0 0 7px;
+  text-transform: uppercase;
+}
+
+#btl-cli pre {
+  background: #f1f3f5;
+  border: 1px solid #d5d9dd;
+  border-radius: 8px;
+  color: #18201b;
+  margin: 0;
+  overflow-x: auto;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+#btl-cli code {
+  color: #18201b;
+  font-size: 0.94rem;
+  white-space: pre;
 }
 
 .btl-upload .wrap {
   background: rgba(255, 255, 255, 0.76) !important;
 }
 
-#btl-controls {
-  align-items: end;
+#btl-controls,
+#btl-actions {
+  justify-content: center;
   margin-bottom: 12px;
 }
 
-#btl-controls .form,
-#btl-controls .block {
+#btl-controls {
+  align-items: end;
+}
+
+#btl-actions {
+  align-items: center;
+}
+
+#btl-controls > .form,
+#btl-controls > .block {
   min-height: 72px !important;
+}
+
+#btl-controls > *,
+#btl-actions > * {
+  flex: 0 1 360px !important;
+}
+
+#btl-actions > * {
+  max-width: 190px;
 }
 
 #model_choice label,
@@ -135,18 +186,23 @@ code {
 
 #input_code textarea,
 #output_code textarea {
-  min-height: 520px !important;
+  height: min(56vh, 620px) !important;
   line-height: 1.45 !important;
+  overflow: auto !important;
 }
 
 #input_code .cm-editor,
 #output_code .cm-editor {
-  min-height: 520px !important;
+  height: min(56vh, 620px) !important;
+  max-height: 620px !important;
+  border-top: 0 !important;
 }
 
 #input_code .cm-scroller,
 #output_code .cm-scroller {
-  min-height: 520px !important;
+  height: min(56vh, 620px) !important;
+  max-height: 620px !important;
+  overflow: auto !important;
 }
 
 #output_code textarea {
@@ -162,6 +218,13 @@ code {
 #output_code .cm-gutters {
   background: var(--btl-code-bg) !important;
   color: #dbf8df !important;
+}
+
+#input_code .label-wrap,
+#output_code .label-wrap,
+#input_code .wrap,
+#output_code .wrap {
+  border-top-color: transparent !important;
 }
 """
 
@@ -222,8 +285,12 @@ def build_app() -> gr.Blocks:
                 """
                 <header id="btl-title">
                   <h1>between-the-lines</h1>
-                  <p>Upload or paste a Python file, choose a comment model, then generate comments that are checked against the file's AST before they are shown.</p>
+                  <p>Annotate Python files from the web or terminal with semantically meaningful comments. The model comments only on AST-backed code blocks, and the application deterministically verifies that the executable AST is unchanged after annotation.</p>
                 </header>
+                <section id="btl-cli" aria-label="Terminal command">
+                  <p class="btl-cli-label">Run from your terminal</p>
+                  <pre><code>npx between-the-lines-cli path/to/file.py --model base --summary</code></pre>
+                </section>
                 """
             )
 
@@ -242,6 +309,8 @@ def build_app() -> gr.Blocks:
                     elem_id="model_choice",
                     scale=2,
                 )
+
+            with gr.Row(equal_height=False, elem_id="btl-actions"):
                 run_button = gr.Button("Annotate", variant="primary", scale=1)
                 clear_button = gr.ClearButton(value="Clear", components=[], scale=1)
 
