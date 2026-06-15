@@ -2,8 +2,8 @@ gradio==5.50.0
 huggingface_hub
 truststore
 accelerate
-bitsandbytes
-peft
+bitsandbytes==0.49.0
+peft==0.18.0
 safetensors
 spaces
 torch
