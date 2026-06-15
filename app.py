@@ -141,11 +141,23 @@ CSS = """
 }
 
 .btl-card,
-.form,
-.block {
+.form:not(#input_code):not(#output_code),
+.block:not(#input_code):not(#output_code) {
   border-color: var(--btl-line) !important;
   border-radius: 8px !important;
   box-shadow: 0 10px 35px rgba(7, 17, 11, 0.05) !important;
+}
+
+#input_code,
+#output_code,
+#input_code > .block,
+#output_code > .block,
+#input_code .form,
+#output_code .form,
+#input_code .wrap,
+#output_code .wrap {
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 button.primary,
@@ -224,7 +236,9 @@ code {
 #output_code .label-wrap,
 #input_code .wrap,
 #output_code .wrap {
+  border: 0 !important;
   border-top-color: transparent !important;
+  box-shadow: none !important;
 }
 """
 
