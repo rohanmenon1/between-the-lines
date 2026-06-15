@@ -2,7 +2,7 @@ import ast
 from dataclasses import dataclass
 from typing import Literal
 
-from .model import ModelUnavailableError, generate_comment, generate_comment_with_llm, load_llm
+from .model import ModelUnavailableError, generate_comment
 
 
 ModelChoice = Literal["base", "tuned"]
@@ -88,14 +88,10 @@ def insert_comments(source: str, comments: dict[int, str]) -> str:
 def generate_block_comments(blocks: list[BlockInfo], model_choice: ModelChoice = "base") -> tuple[dict[int, str], list[str]]:
     comments: dict[int, str] = {}
     notes: list[str] = []
-    llm = load_llm() if model_choice == "base" else None
 
     for block in blocks:
         try:
-            if model_choice == "base":
-                comments[block.lineno] = generate_comment_with_llm(llm, block.kind, block.name, block.source)
-            else:
-                comments[block.lineno] = generate_comment(block.kind, block.name, block.source, variant="tuned")
+            comments[block.lineno] = generate_comment(block.kind, block.name, block.source, variant=model_choice)
         except ModelUnavailableError:
             raise
         except Exception as exc:
