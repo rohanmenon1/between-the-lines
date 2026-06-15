@@ -27,6 +27,18 @@ The app includes two modes:
 
 The model never edits code directly. It only proposes comments, and the app rejects any annotated file whose semantic AST changes.
 
+## CLI Usage
+
+The same annotation pipeline is available from the command line:
+
+```bash
+python -m btl.cli path/to/file.py --model base --output annotated.py --summary
+python -m btl.cli path/to/file.py --model tuned --in-place
+python -m btl.cli path/to/file.py --check --summary
+```
+
+`--model base` uses the richer Mellum2 GGUF path. `--model tuned` uses the LoRA adapter for shorter comments. Both modes run the AST validation before writing output.
+
 ## Hackathon Fit
 
 - **Track:** Backyard AI

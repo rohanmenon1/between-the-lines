@@ -1,12 +1,11 @@
-import ast
 import html
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import gradio as gr
 
-from btl.model import ModelUnavailableError, generate_comment, generate_comment_with_llm, load_llm
+from btl.annotate import annotate_python, collect_blocks, parse_python
+from btl.model import ModelUnavailableError
 
 
 CSS = """
@@ -156,130 +155,18 @@ code {
 """
 
 
-@dataclass(frozen=True)
-class BlockInfo:
-    kind: str
-    name: str
-    lineno: int
-    source: str
-
-
-def _parse_python(source: str) -> ast.Module:
-    return ast.parse(source)
-
-
-def _strip_docstrings(node: ast.AST) -> ast.AST:
-    copied = ast.fix_missing_locations(ast.parse(ast.unparse(node)))
-    for child in ast.walk(copied):
-        if isinstance(child, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if (
-                child.body
-                and isinstance(child.body[0], ast.Expr)
-                and isinstance(child.body[0].value, ast.Constant)
-                and isinstance(child.body[0].value.value, str)
-            ):
-                child.body = child.body[1:]
-    return copied
-
-
-def _semantic_ast_dump(source: str) -> str:
-    tree = _parse_python(source)
-    stripped = _strip_docstrings(tree)
-    return ast.dump(stripped, include_attributes=False)
-
-
-def _collect_blocks(tree: ast.Module, source: str) -> list[BlockInfo]:
-    blocks: list[BlockInfo] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef):
-            block_source = ast.get_source_segment(source, node) or ast.unparse(node)
-            blocks.append(BlockInfo("class", node.name, node.lineno, block_source))
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            kind = "async function" if isinstance(node, ast.AsyncFunctionDef) else "function"
-            block_source = ast.get_source_segment(source, node) or ast.unparse(node)
-            blocks.append(BlockInfo(kind, node.name, node.lineno, block_source))
-    return sorted(blocks, key=lambda item: item.lineno)
-
-
-def _placeholder_summary(blocks: list[BlockInfo]) -> str:
-    if not blocks:
-        return "This Python file has no classes or functions to annotate yet."
-    names = ", ".join(f"{block.kind} `{block.name}`" for block in blocks[:8])
-    overflow = "" if len(blocks) <= 8 else f", plus {len(blocks) - 8} more"
-    return f"This file defines {names}{overflow}. Model-generated summaries will replace this deterministic placeholder."
-
-
-def _insert_comments(source: str, comments: dict[int, str]) -> str:
-    lines = source.splitlines()
-    inserts: dict[int, list[str]] = {}
-    for lineno, comment_text in comments.items():
-        indent = len(lines[lineno - 1]) - len(lines[lineno - 1].lstrip())
-        inserts.setdefault(lineno - 1, []).append(" " * indent + comment_text)
-
-    annotated: list[str] = []
-    for index, line in enumerate(lines):
-        annotated.extend(inserts.get(index, []))
-        annotated.append(line)
-    return "\n".join(annotated) + ("\n" if source.endswith("\n") else "")
-
-
 MODEL_LABELS = {
     "Base Mellum2 (richer)": "base",
     "Fine-tuned LoRA (concise)": "tuned",
 }
 
 
-def _generate_block_comments(blocks: list[BlockInfo], model_label: str) -> tuple[dict[int, str], list[str]]:
-    comments: dict[int, str] = {}
-    notes: list[str] = []
-    model_variant = MODEL_LABELS.get(model_label, "base")
-    llm = load_llm() if model_variant == "base" else None
-    for block in blocks:
-        try:
-            if model_variant == "base":
-                comments[block.lineno] = generate_comment_with_llm(llm, block.kind, block.name, block.source)
-            else:
-                comments[block.lineno] = generate_comment(block.kind, block.name, block.source, variant="tuned")
-        except Exception as exc:
-            comments[block.lineno] = f"# TODO(model): Could not explain {block.kind} `{block.name}`."
-            notes.append(f"{block.name}: model generation failed ({type(exc).__name__}).")
-    return comments, notes
-
-
 def annotate_code(source: str, model_label: str) -> tuple[str, str, str]:
-    source = source.strip("\ufeff")
-    if not source.strip():
-        return "", "", "Paste a Python file to annotate."
-
     try:
-        original_tree = _parse_python(source)
-    except SyntaxError as exc:
-        return "", "", f"Syntax error on line {exc.lineno}: {html.escape(exc.msg)}"
-
-    blocks = _collect_blocks(original_tree, source)
-    if not blocks:
-        return _placeholder_summary(blocks), source, "Parsed successfully. No classes or functions to annotate."
-
-    try:
-        comments, generation_notes = _generate_block_comments(blocks, model_label)
+        result = annotate_python(source, MODEL_LABELS.get(model_label, "base"))
     except ModelUnavailableError as exc:
-        return _placeholder_summary(blocks), source, f"Model unavailable: {html.escape(str(exc))}"
-
-    annotated = _insert_comments(source, comments)
-
-    try:
-        same_ast = _semantic_ast_dump(source) == _semantic_ast_dump(annotated)
-    except SyntaxError as exc:
-        return "", annotated, f"Generated annotation failed to parse on line {exc.lineno}: {html.escape(exc.msg)}"
-
-    status = (
-        f"Validated: parsed {len(blocks)} block(s), inserted {model_label} comments, semantic AST unchanged."
-        if same_ast
-        else "Rejected: annotation changed the semantic AST."
-    )
-    if generation_notes:
-        status += "\n" + "\n".join(generation_notes)
-    return _placeholder_summary(blocks), annotated if same_ast else source, status
+        return "", source, f"Model unavailable: {html.escape(str(exc))}"
+    return result.summary, result.annotated_source, result.status
 
 
 def load_uploaded_python(file_obj: Any) -> tuple[str, str]:
@@ -298,11 +185,11 @@ def load_uploaded_python(file_obj: Any) -> tuple[str, str]:
         return "", f"Could not read `{path.name}`: {exc}"
 
     try:
-        tree = _parse_python(source)
+        tree = parse_python(source)
     except SyntaxError as exc:
         return source, f"Loaded `{path.name}`, but parsing failed on line {exc.lineno}: {html.escape(exc.msg)}"
 
-    blocks = _collect_blocks(tree, source)
+    blocks = collect_blocks(tree, source)
     return source, f"Loaded `{path.name}`. Parsed {len(blocks)} class/function block(s)."
 
 
