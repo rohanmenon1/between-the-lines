@@ -1,8 +1,5 @@
 ---
 title: between-the-lines
-emoji: 🟩
-colorFrom: green
-colorTo: gray
 sdk: gradio
 sdk_version: 5.50.0
 app_file: app.py
