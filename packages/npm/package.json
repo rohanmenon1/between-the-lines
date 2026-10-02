@@ -1,9 +1,10 @@
 {
   "name": "between-the-lines-cli",
-  "version": "0.1.0",
-  "description": "CLI client for the hosted between-the-lines Python annotator.",
+  "version": "0.2.0",
+  "description": "CLI client for the hosted between-the-lines Python and Java annotator.",
   "type": "module",
   "bin": {
+    "between-the-lines-cli": "./src/cli.js",
     "between-the-lines": "./src/cli.js",
     "btl": "./src/cli.js"
   },
@@ -21,6 +22,7 @@
     "huggingface",
     "gradio",
     "python",
+    "java",
     "ast",
     "code-comments",
     "cli"

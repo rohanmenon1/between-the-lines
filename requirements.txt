@@ -8,3 +8,5 @@ safetensors
 spaces
 torch
 git+https://github.com/huggingface/transformers.git
+tree-sitter>=0.25,<0.26
+tree-sitter-java>=0.23,<0.24

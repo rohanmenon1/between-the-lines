@@ -50,18 +50,16 @@ def _load_base_model():
         raise ModelUnavailableError(f"Could not load base Mellum2 model `{model_name}`: {exc}") from exc
 
 
-def _clean_comment(text: str) -> str:
+def _clean_comment(text: str, language: str = "python") -> str:
     line = text.strip().splitlines()[0].strip() if text.strip() else ""
     line = line.strip("`").strip()
 
     if line.startswith("Comment:"):
         line = line.removeprefix("Comment:").strip()
 
-    if not line.startswith("#"):
-        line = "# " + line.lstrip("# ").strip()
-
-    if not line.startswith("# "):
-        line = "# " + line[1:].strip()
+    line = line.removeprefix("//").removeprefix("#").strip()
+    prefix = "# " if language == "python" else "// "
+    line = prefix + line
 
     return line[:240].rstrip()
 
@@ -104,19 +102,19 @@ def _load_tuned_model():
         raise ModelUnavailableError(f"Could not load tuned LoRA adapter `{adapter_path_or_repo}`: {exc}") from exc
 
 
-def generate_comment(kind: str, name: str, source: str, variant: ModelVariant = "base") -> str:
+def generate_comment(kind: str, name: str, source: str, variant: ModelVariant = "base", language: str = "python") -> str:
     if variant == "tuned":
-        return generate_comment_with_tuned_model(kind, name, source)
-    return generate_comment_with_base_model(kind, name, source)
+        return generate_comment_with_tuned_model(kind, name, source, language)
+    return generate_comment_with_base_model(kind, name, source, language)
 
 
-def generate_file_summary(source: str, variant: ModelVariant = "base") -> str:
+def generate_file_summary(source: str, variant: ModelVariant = "base", language: str = "python") -> str:
     if variant == "tuned":
         tokenizer, model = _load_tuned_model()
         return _generate_text_with_transformers(
             tokenizer,
             model,
-            build_summary_messages(source),
+            build_summary_messages(source, language),
             "BTL_TUNED_MODEL_CTX",
             max_new_tokens=120,
             cleaner=_clean_summary,
@@ -126,7 +124,7 @@ def generate_file_summary(source: str, variant: ModelVariant = "base") -> str:
     return _generate_text_with_transformers(
         tokenizer,
         model,
-        build_summary_messages(source),
+        build_summary_messages(source, language),
         "BTL_MODEL_CTX",
         max_new_tokens=120,
         cleaner=_clean_summary,
@@ -169,22 +167,22 @@ def _generate_text_with_transformers(
     return cleaner(text)
 
 
-def _generate_comment_with_transformers(tokenizer, model, kind: str, name: str, source: str, max_length_env: str) -> str:
+def _generate_comment_with_transformers(tokenizer, model, kind: str, name: str, source: str, max_length_env: str, language: str) -> str:
     return _generate_text_with_transformers(
         tokenizer,
         model,
-        build_comment_messages(kind, name, source),
+        build_comment_messages(kind, name, source, language),
         max_length_env,
         max_new_tokens=80,
-        cleaner=_clean_comment,
+        cleaner=lambda text: _clean_comment(text, language),
     )
 
 
-def generate_comment_with_base_model(kind: str, name: str, source: str) -> str:
+def generate_comment_with_base_model(kind: str, name: str, source: str, language: str = "python") -> str:
     tokenizer, model = _load_base_model()
-    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_MODEL_CTX")
+    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_MODEL_CTX", language)
 
 
-def generate_comment_with_tuned_model(kind: str, name: str, source: str) -> str:
+def generate_comment_with_tuned_model(kind: str, name: str, source: str, language: str = "python") -> str:
     tokenizer, model = _load_tuned_model()
-    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_TUNED_MODEL_CTX")
+    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_TUNED_MODEL_CTX", language)

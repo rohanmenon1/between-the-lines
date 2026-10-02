@@ -30,24 +30,9 @@ def parse_python(source: str) -> ast.Module:
     return ast.parse(source)
 
 
-def strip_docstrings(node: ast.AST) -> ast.AST:
-    copied = ast.fix_missing_locations(ast.parse(ast.unparse(node)))
-    for child in ast.walk(copied):
-        if isinstance(child, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if (
-                child.body
-                and isinstance(child.body[0], ast.Expr)
-                and isinstance(child.body[0].value, ast.Constant)
-                and isinstance(child.body[0].value.value, str)
-            ):
-                child.body = child.body[1:]
-    return copied
-
-
 def semantic_ast_dump(source: str) -> str:
-    tree = parse_python(source)
-    stripped = strip_docstrings(tree)
-    return ast.dump(stripped, include_attributes=False)
+    """Compare code and docstrings while ignoring source positions."""
+    return ast.dump(parse_python(source), include_attributes=False)
 
 
 def collect_blocks(tree: ast.Module, source: str) -> list[BlockInfo]:
@@ -71,10 +56,10 @@ def summarize_blocks(blocks: list[BlockInfo]) -> str:
     return f"This file defines {names}{overflow}."
 
 
-def generate_summary(source: str, blocks: list[BlockInfo], model_choice: ModelChoice = "base") -> tuple[str, list[str]]:
+def generate_summary(source: str, blocks: list[BlockInfo], model_choice: ModelChoice = "base", language: str = "python") -> tuple[str, list[str]]:
     notes: list[str] = []
     try:
-        summary = generate_file_summary(source, variant=model_choice)
+        summary = generate_file_summary(source, variant=model_choice, language=language)
         if summary:
             return summary, notes
         notes.append("file summary: model returned an empty summary.")
@@ -86,17 +71,19 @@ def generate_summary(source: str, blocks: list[BlockInfo], model_choice: ModelCh
 
 
 def insert_comments(source: str, comments: dict[int, str]) -> str:
-    lines = source.splitlines()
+    lines = source.splitlines(keepends=True)
+    newline = "\r\n" if "\r\n" in source else "\n"
     inserts: dict[int, list[str]] = {}
     for lineno, comment_text in comments.items():
-        indent = len(lines[lineno - 1]) - len(lines[lineno - 1].lstrip())
-        inserts.setdefault(lineno - 1, []).append(" " * indent + comment_text)
+        line = lines[lineno - 1]
+        indent = line[: len(line) - len(line.lstrip())]
+        inserts.setdefault(lineno - 1, []).append(indent + comment_text + newline)
 
     annotated: list[str] = []
     for index, line in enumerate(lines):
         annotated.extend(inserts.get(index, []))
         annotated.append(line)
-    return "\n".join(annotated) + ("\n" if source.endswith("\n") else "")
+    return "".join(annotated)
 
 
 def generate_block_comments(blocks: list[BlockInfo], model_choice: ModelChoice = "base") -> tuple[dict[int, str], list[str]]:
@@ -141,7 +128,7 @@ def annotate_python(source: str, model_choice: ModelChoice = "base") -> Annotati
     except SyntaxError as exc:
         return AnnotationResult(
             "",
-            annotated,
+            source,
             f"Generated annotation failed to parse on line {exc.lineno}: {exc.msg}",
             False,
             len(blocks),
@@ -149,7 +136,7 @@ def annotate_python(source: str, model_choice: ModelChoice = "base") -> Annotati
         )
 
     status = (
-        f"Validated: parsed {len(blocks)} block(s), inserted {model_choice} model comments, semantic AST unchanged."
+        f"Validated: parsed {len(blocks)} block(s), inserted comments, AST unchanged."
         if same_ast
         else "Rejected: annotation changed the semantic AST."
     )
@@ -164,3 +151,13 @@ def annotate_python(source: str, model_choice: ModelChoice = "base") -> Annotati
         len(blocks),
         tuple(generation_notes),
     )
+
+
+def annotate_source(source: str, model_choice: ModelChoice = "base", language: str = "python") -> AnnotationResult:
+    if language == "python":
+        return annotate_python(source, model_choice)
+    if language == "java":
+        from .java import annotate_java
+
+        return annotate_java(source, model_choice)
+    return AnnotationResult("", source, f"Unsupported language: {language}", False, 0)

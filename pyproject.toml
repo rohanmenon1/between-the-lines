@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "between-the-lines"
 version = "0.1.0"
-description = "Annotate Python files with small-model comments and AST validation."
+description = "Annotate Python and Java files with small-model comments and syntax validation."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,6 +19,8 @@ dependencies = [
     "torch",
     "transformers @ git+https://github.com/huggingface/transformers.git",
     "truststore",
+    "tree-sitter>=0.25,<0.26",
+    "tree-sitter-java>=0.23,<0.24",
 ]
 
 [tool.setuptools.packages.find]

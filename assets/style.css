@@ -1,0 +1,275 @@
+:root {
+  --btl-bg: #f3f8f0;
+  --btl-panel: #ffffff;
+  --btl-ink: #111812;
+  --btl-muted: #5b6a5f;
+  --btl-line: #d8e4d6;
+  --btl-green: #1f6f43;
+  --btl-green-dark: #0d2818;
+  --btl-green-soft: #e3f1df;
+  --btl-code-bg: #07110b;
+}
+
+.gradio-container {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(31, 111, 67, 0.16), transparent 28rem),
+    linear-gradient(135deg, rgba(7, 17, 11, 0.08), transparent 24rem),
+    linear-gradient(180deg, rgba(13, 40, 24, 0.08), transparent 260px),
+    var(--btl-bg) !important;
+  color: var(--btl-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#btl-shell {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+#btl-title {
+  padding: 22px 0 12px;
+  text-align: center;
+}
+
+#btl-title h1 {
+  color: var(--btl-green-dark);
+  font-size: clamp(2rem, 5vw, 4.75rem);
+  line-height: 0.96;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+#btl-title p {
+  color: var(--btl-muted);
+  font-size: 1.02rem;
+  line-height: 1.6;
+  max-width: 850px;
+  margin: 14px auto 0;
+}
+
+#btl-cli {
+  max-width: 780px;
+  margin: 0 auto 22px;
+}
+
+#btl-cli .btl-cli-label {
+  color: var(--btl-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  margin: 0 0 7px;
+  text-transform: uppercase;
+}
+
+#btl-cli pre {
+  background: #f1f3f5;
+  border: 1px solid #d5d9dd;
+  border-radius: 8px;
+  color: #18201b;
+  margin: 0;
+  overflow-x: auto;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+#btl-cli code {
+  color: #18201b;
+  font-size: 0.94rem;
+  white-space: pre;
+}
+
+.btl-upload .wrap {
+  background: transparent !important;
+}
+
+#btl-controls,
+#btl-actions {
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+#btl-controls {
+  align-items: end;
+}
+
+#btl-actions {
+  align-items: center;
+}
+
+#btl-controls > .form,
+#btl-controls > .block {
+  min-height: 72px !important;
+}
+
+#btl-controls > *,
+#btl-actions > * {
+  flex: 0 1 360px !important;
+}
+
+#btl-controls > *:nth-child(2) {
+  flex: 1 1 500px !important;
+  max-width: 500px;
+}
+
+#btl-actions > * {
+  max-width: 190px;
+}
+
+#model_choice label,
+#language_choice label,
+#input_code label,
+#output_code label,
+#summary_box label,
+#status_box label {
+  color: var(--btl-green-dark) !important;
+  font-weight: 700 !important;
+}
+
+#input_code label,
+#output_code label {
+  color: #dbf8df !important;
+}
+
+.btl-card,
+.form:not(#input_code):not(#output_code),
+.block:not(#input_code):not(#output_code) {
+  border-color: var(--btl-line) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 35px rgba(7, 17, 11, 0.05) !important;
+}
+
+#input_code,
+#output_code,
+#input_code > .block,
+#output_code > .block,
+#input_code .form,
+#output_code .form,
+#input_code .wrap,
+#output_code .wrap {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+button.primary,
+.primary > button {
+  background: var(--btl-green-dark) !important;
+  border-color: var(--btl-green-dark) !important;
+  color: #f8fff8 !important;
+  border-radius: 8px !important;
+}
+
+button.secondary,
+.secondary > button {
+  border-radius: 8px !important;
+}
+
+textarea,
+pre,
+code {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace !important;
+}
+
+#summary_box textarea {
+  background: #f7fbf4 !important;
+  color: var(--btl-green-dark) !important;
+  text-align: center !important;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+  font-weight: 650 !important;
+  line-height: 1.55 !important;
+}
+
+#status_box textarea {
+  background: #123923 !important;
+  color: #e7f8e8 !important;
+  border-color: #123923 !important;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+  line-height: 1.45 !important;
+}
+
+#input_code textarea,
+#output_code textarea {
+  height: min(56vh, 620px) !important;
+  line-height: 1.45 !important;
+  overflow: auto !important;
+}
+
+#input_code .cm-editor,
+#output_code .cm-editor {
+  height: min(56vh, 620px) !important;
+  max-height: 620px !important;
+  border-top: 0 !important;
+}
+
+#input_code .cm-scroller,
+#output_code .cm-scroller {
+  height: min(56vh, 620px) !important;
+  max-height: 620px !important;
+  overflow: auto !important;
+}
+
+#output_code textarea {
+  background: var(--btl-code-bg) !important;
+  color: #dbf8df !important;
+}
+
+#output_code .cm-editor {
+  background: var(--btl-code-bg) !important;
+}
+
+#output_code .cm-content,
+#output_code .cm-gutters {
+  background: var(--btl-code-bg) !important;
+  color: #dbf8df !important;
+}
+
+#input_code .label-wrap,
+#output_code .label-wrap,
+#input_code .wrap,
+#output_code .wrap {
+  border: 0 !important;
+  border-top-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Gradio follows the visitor's system theme, so the shell must follow it too. */
+body.dark .gradio-container {
+  background: #101a13 !important;
+  color: #e7f8e8;
+}
+
+body.dark #btl-title h1,
+body.dark #btl-title p,
+body.dark #btl-cli .btl-cli-label,
+body.dark #language_choice label,
+body.dark #model_choice label,
+body.dark #summary_box label,
+body.dark #status_box label {
+  color: #e7f8e8 !important;
+}
+
+body.dark #btl-cli pre,
+body.dark .btl-upload .wrap {
+  background: #203126 !important;
+  border-color: #3d5744 !important;
+  color: #e7f8e8 !important;
+}
+
+body.dark #btl-cli code {
+  color: #e7f8e8 !important;
+}
+
+body.dark .btl-upload button .wrap {
+  background: #203126 !important;
+  color: #e7f8e8 !important;
+}
+
+body.dark .btl-upload > button,
+body.dark .btl-upload > button > .wrap {
+  background: #203126 !important;
+  border-color: #3d5744 !important;
+  color: #e7f8e8 !important;
+}
+
+body.dark #summary_box textarea {
+  background: #1e3023 !important;
+  color: #e7f8e8 !important;
+}
