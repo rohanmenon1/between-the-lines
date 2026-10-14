@@ -1,0 +1,23 @@
+entrypoint = "app.py"
+modules = ["python-3.11"]
+
+[run]
+args = ["sh", "-c", "python -m pip install -r requirements-replit.txt && exec python app.py"]
+
+[run.env]
+BTL_REMOTE_URL = "https://coolbeanz79-between-the-lines.hf.space"
+GRADIO_SERVER_PORT = "8080"
+
+[packager.features]
+guessImports = false
+packageSearch = false
+enabledForHosting = false
+
+[deployment]
+build = ["python", "-m", "pip", "install", "-r", "requirements-replit.txt"]
+run = ["env", "BTL_REMOTE_URL=https://coolbeanz79-between-the-lines.hf.space", "GRADIO_SERVER_PORT=8080", "python", "app.py"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 8080
+externalPort = 80

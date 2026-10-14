@@ -1,14 +1,29 @@
-import os
+from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import Literal
+import json
+import os
+from threading import RLock
+from typing import Any, Iterator, Literal
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from .prompts import build_comment_messages, build_summary_messages
 
 
 DEFAULT_BASE_TRANSFORMERS_MODEL = "JetBrains/Mellum2-12B-A2.5B-Instruct"
 DEFAULT_TUNED_ADAPTER_REPO = "coolbeanz79/between-the-lines-mellum2-lora"
+DEFAULT_LOCAL_MODEL = "qwen3:4b-instruct"
 
-ModelVariant = Literal["base", "tuned"]
+ModelVariant = Literal["base", "tuned", "local"]
+_TRANSFORMERS_LOCK = RLock()
+
+
+@dataclass
+class _TransformersRuntime:
+    tokenizer: Any
+    base_model: Any
+    tuned_model: Any = None
 
 
 class ModelUnavailableError(RuntimeError):
@@ -16,7 +31,7 @@ class ModelUnavailableError(RuntimeError):
 
 
 @lru_cache(maxsize=1)
-def _load_base_model():
+def _load_transformers_runtime() -> _TransformersRuntime:
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -45,9 +60,11 @@ def _load_base_model():
             quantization_config=quantization_config,
         )
         model.eval()
-        return tokenizer, model
+        return _TransformersRuntime(tokenizer, model)
     except Exception as exc:
-        raise ModelUnavailableError(f"Could not load base Mellum2 model `{model_name}`: {exc}") from exc
+        raise ModelUnavailableError(
+            f"Could not load base Mellum2 model `{model_name}`: {exc}"
+        ) from exc
 
 
 def _clean_comment(text: str, language: str = "python") -> str:
@@ -65,7 +82,9 @@ def _clean_comment(text: str, language: str = "python") -> str:
 
 
 def _clean_summary(text: str) -> str:
-    cleaned = " ".join(line.strip().strip("`") for line in text.strip().splitlines() if line.strip())
+    cleaned = " ".join(
+        line.strip().strip("`") for line in text.strip().splitlines() if line.strip()
+    )
     if cleaned.startswith("Summary:"):
         cleaned = cleaned.removeprefix("Summary:").strip()
     cleaned = cleaned.strip('"').strip("'").strip()
@@ -74,8 +93,10 @@ def _clean_summary(text: str) -> str:
     return cleaned[:500].rstrip()
 
 
-@lru_cache(maxsize=1)
-def _load_tuned_model():
+def _load_tuned_model(runtime: _TransformersRuntime):
+    if runtime.tuned_model is not None:
+        return runtime.tuned_model
+
     adapter_path_or_repo = (
         os.getenv("BTL_TUNED_ADAPTER_PATH")
         or os.getenv("BTL_TUNED_ADAPTER_REPO")
@@ -94,41 +115,64 @@ def _load_tuned_model():
         ) from exc
 
     try:
-        tokenizer, base_model = _load_base_model()
-        model = PeftModel.from_pretrained(base_model, adapter_path_or_repo)
+        model = PeftModel.from_pretrained(runtime.base_model, adapter_path_or_repo)
         model.eval()
-        return tokenizer, model
+        runtime.tuned_model = model
+        return model
     except Exception as exc:
-        raise ModelUnavailableError(f"Could not load tuned LoRA adapter `{adapter_path_or_repo}`: {exc}") from exc
+        # PEFT can inject layers before loading adapter weights fails.
+        # Discard that runtime so a later base request cannot use a partial adapter.
+        _load_transformers_runtime.cache_clear()
+        raise ModelUnavailableError(
+            f"Could not load tuned LoRA adapter `{adapter_path_or_repo}`: {exc}"
+        ) from exc
 
 
-def generate_comment(kind: str, name: str, source: str, variant: ModelVariant = "base", language: str = "python") -> str:
+@contextmanager
+def _transformers_model(variant: ModelVariant) -> Iterator[tuple[Any, Any]]:
+    """Serialize inference because PEFT modifies the shared base model in place."""
+    with _TRANSFORMERS_LOCK:
+        runtime = _load_transformers_runtime()
+        if variant == "tuned":
+            yield runtime.tokenizer, _load_tuned_model(runtime)
+        elif runtime.tuned_model is not None:
+            # Disabling the adapter temporarily restores the original base weights.
+            # The context also restores the adapter when generation raises.
+            with runtime.tuned_model.disable_adapter():
+                yield runtime.tokenizer, runtime.tuned_model
+        else:
+            yield runtime.tokenizer, runtime.base_model
+
+
+def generate_comment(
+    kind: str,
+    name: str,
+    source: str,
+    variant: ModelVariant = "base",
+    language: str = "python",
+) -> str:
+    if variant == "local":
+        return generate_comment_with_local_model(kind, name, source, language)
     if variant == "tuned":
         return generate_comment_with_tuned_model(kind, name, source, language)
     return generate_comment_with_base_model(kind, name, source, language)
 
 
-def generate_file_summary(source: str, variant: ModelVariant = "base", language: str = "python") -> str:
-    if variant == "tuned":
-        tokenizer, model = _load_tuned_model()
+def generate_file_summary(
+    source: str, variant: ModelVariant = "base", language: str = "python"
+) -> str:
+    if variant == "local":
+        return ""
+    context_env = "BTL_TUNED_MODEL_CTX" if variant == "tuned" else "BTL_MODEL_CTX"
+    with _transformers_model(variant) as (tokenizer, model):
         return _generate_text_with_transformers(
             tokenizer,
             model,
             build_summary_messages(source, language),
-            "BTL_TUNED_MODEL_CTX",
+            context_env,
             max_new_tokens=120,
             cleaner=_clean_summary,
         )
-
-    tokenizer, model = _load_base_model()
-    return _generate_text_with_transformers(
-        tokenizer,
-        model,
-        build_summary_messages(source, language),
-        "BTL_MODEL_CTX",
-        max_new_tokens=120,
-        cleaner=_clean_summary,
-    )
 
 
 def _generate_text_with_transformers(
@@ -141,7 +185,9 @@ def _generate_text_with_transformers(
 ) -> str:
     import torch
 
-    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    prompt = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
     encoded = tokenizer(
         prompt,
         return_tensors="pt",
@@ -167,7 +213,15 @@ def _generate_text_with_transformers(
     return cleaner(text)
 
 
-def _generate_comment_with_transformers(tokenizer, model, kind: str, name: str, source: str, max_length_env: str, language: str) -> str:
+def _generate_comment_with_transformers(
+    tokenizer,
+    model,
+    kind: str,
+    name: str,
+    source: str,
+    max_length_env: str,
+    language: str,
+) -> str:
     return _generate_text_with_transformers(
         tokenizer,
         model,
@@ -178,11 +232,64 @@ def _generate_comment_with_transformers(tokenizer, model, kind: str, name: str, 
     )
 
 
-def generate_comment_with_base_model(kind: str, name: str, source: str, language: str = "python") -> str:
-    tokenizer, model = _load_base_model()
-    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_MODEL_CTX", language)
+def generate_comment_with_base_model(
+    kind: str, name: str, source: str, language: str = "python"
+) -> str:
+    with _transformers_model("base") as (tokenizer, model):
+        return _generate_comment_with_transformers(
+            tokenizer, model, kind, name, source, "BTL_MODEL_CTX", language
+        )
 
 
-def generate_comment_with_tuned_model(kind: str, name: str, source: str, language: str = "python") -> str:
-    tokenizer, model = _load_tuned_model()
-    return _generate_comment_with_transformers(tokenizer, model, kind, name, source, "BTL_TUNED_MODEL_CTX", language)
+def generate_comment_with_tuned_model(
+    kind: str, name: str, source: str, language: str = "python"
+) -> str:
+    with _transformers_model("tuned") as (tokenizer, model):
+        return _generate_comment_with_transformers(
+            tokenizer, model, kind, name, source, "BTL_TUNED_MODEL_CTX", language
+        )
+
+
+def generate_comment_with_local_model(
+    kind: str, name: str, source: str, language: str = "python"
+) -> str:
+    """Ask the Ollama server on this machine for one comment."""
+    model_name = os.getenv("BTL_OLLAMA_MODEL", DEFAULT_LOCAL_MODEL)
+    payload = json.dumps(
+        {
+            "model": model_name,
+            "messages": build_comment_messages(kind, name, source, language),
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 80},
+        }
+    ).encode("utf-8")
+    request = Request(
+        "http://127.0.0.1:11434/api/chat",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=120) as response:
+            result = json.load(response)
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise ModelUnavailableError(
+            f"Ollama could not run `{model_name}`: {detail}"
+        ) from exc
+    except (URLError, TimeoutError) as exc:
+        raise ModelUnavailableError(
+            "Cannot reach local Ollama. Start Ollama and try again."
+        ) from exc
+
+    if result.get("error"):
+        raise ModelUnavailableError(
+            f"Ollama could not run `{model_name}`: {result['error']}"
+        )
+    raw_comment = result.get("message", {}).get("content", "")
+    comment = _clean_comment(raw_comment, language)
+    if comment in {"#", "# ", "//", "// "}:
+        raise ModelUnavailableError(
+            f"Ollama model `{model_name}` returned an empty comment."
+        )
+    return comment

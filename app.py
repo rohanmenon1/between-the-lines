@@ -1,12 +1,16 @@
-import html
+import os
 from pathlib import Path
 from typing import Any
 
 import gradio as gr
 
-from btl.annotate import annotate_python, annotate_source, collect_blocks, parse_python
+from btl.annotate import annotate_source, collect_blocks, parse_python
 from btl.java import collect_java_blocks, parse_java
 from btl.model import ModelUnavailableError
+from btl.remote import annotate_remote
+
+
+REMOTE_URL = os.getenv("BTL_REMOTE_URL", "").strip()
 
 try:
     import spaces
@@ -15,7 +19,7 @@ except ImportError:
 
 
 def zero_gpu_task(fn):
-    if spaces is None:
+    if REMOTE_URL or spaces is None:
         return fn
     return spaces.GPU(duration=120)(fn)
 
@@ -24,54 +28,80 @@ CSS = (Path(__file__).parent / "assets" / "style.css").read_text(encoding="utf-8
 
 
 MODEL_LABELS = {
+    "Base Mellum2": "base",
+    "LoRA adapter (experimental)": "tuned",
+    # Keep older CLI versions compatible with this API.
     "Base Mellum2 (richer)": "base",
     "Fine-tuned LoRA (concise)": "tuned",
 }
+MODEL_CHOICES = ["Base Mellum2", "LoRA adapter (experimental)"]
 
 
-def cli_markup(language_label: str) -> str:
-    filename = "File.java" if language_label == "Java" else "file.py"
+def cli_markup() -> str:
     return (
         '<section id="btl-cli" aria-label="Terminal command">'
-        '<p class="btl-cli-label">Run from your terminal</p>'
-        f'<pre><code>npx between-the-lines-cli path/to/{filename} --model base --summary</code></pre>'
-        '</section>'
+        '<p class="btl-cli-label">Review staged files with a local model</p>'
+        "<pre><code>git btl annotate --staged</code></pre>"
+        '<a class="btl-cli-setup" href="https://huggingface.co/spaces/coolbeanz79/between-the-lines/blob/main/README.md" '
+        'target="_blank" rel="noopener noreferrer">Local setup</a>'
+        "</section>"
     )
+
+
+def _annotate(
+    source: str, model_label: str, language_label: str
+) -> tuple[str, str, str]:
+    model = MODEL_LABELS.get(model_label)
+    if model is None:
+        return "", source, "Select a supported comment model."
+    source = source.removeprefix("\ufeff")
+    language = language_label.lower()
+    try:
+        result = (
+            annotate_remote(source, model, language, REMOTE_URL)
+            if REMOTE_URL
+            else annotate_source(source, model, language)
+        )
+    except ModelUnavailableError as exc:
+        return "", source, f"Model unavailable: {exc}"
+    except ImportError:
+        return (
+            "",
+            source,
+            "A required dependency is missing. Install the requirements for this deployment.",
+        )
+    return result.summary, result.annotated_source, result.status
 
 
 @zero_gpu_task
 def annotate_code(source: str, model_label: str) -> tuple[str, str, str]:
-    try:
-        result = annotate_python(source, MODEL_LABELS.get(model_label, "base"))
-    except ModelUnavailableError as exc:
-        return "", source, f"Model unavailable: {html.escape(str(exc))}"
-    return result.summary, result.annotated_source, result.status
+    """Retain the original Python endpoint for published CLI clients."""
+    return _annotate(source, model_label, "Python")
 
 
 @zero_gpu_task
-def annotate_code_with_language(source: str, model_label: str, language_label: str) -> tuple[str, str, str]:
-    try:
-        result = annotate_source(source, MODEL_LABELS.get(model_label, "base"), language_label.lower())
-    except ModelUnavailableError as exc:
-        return "", source, f"Model unavailable: {html.escape(str(exc))}"
-    except ImportError as exc:
-        return "", source, f"Java support unavailable: install the Tree-sitter dependencies ({html.escape(str(exc))})"
-    return result.summary, result.annotated_source, result.status
+def annotate_code_with_language(
+    source: str, model_label: str, language_label: str
+) -> tuple[str, str, str]:
+    return _annotate(source, model_label, language_label)
 
 
 def load_uploaded_source(file_obj: Any) -> tuple[str, str, str, str, str]:
     if file_obj is None:
-        return "", "", "", "Choose a `.py` or `.java` file to load it into the editor.", "Python"
+        return (
+            "",
+            "",
+            "",
+            "Choose a `.py` or `.java` file to load it into the editor.",
+            "Python",
+        )
 
-    path = Path(file_obj if isinstance(file_obj, str) else file_obj.name)
+    path = Path(file_obj if isinstance(file_obj, (str, Path)) else file_obj.name)
     language = "Java" if path.suffix.lower() == ".java" else "Python"
     try:
-        source = path.read_text(encoding="utf-8")
+        source = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError:
-        try:
-            source = path.read_text(encoding="utf-8-sig")
-        except UnicodeDecodeError as exc:
-            return "", "", "", f"Could not read `{path.name}` as UTF-8 text: {exc}", language
+        return "", "", "", f"Could not read `{path.name}` as UTF-8 text.", language
     except OSError as exc:
         return "", "", "", f"Could not read `{path.name}`: {exc}", language
 
@@ -84,23 +114,45 @@ def load_uploaded_source(file_obj: Any) -> tuple[str, str, str, str, str]:
             blocks = collect_blocks(tree, source)
     except SyntaxError as exc:
         detail = f"line {exc.lineno}: {exc.msg}" if exc.lineno else str(exc)
-        return source, "", "", f"Loaded `{path.name}`, but parsing failed: {html.escape(detail)}", language
+        return (
+            source,
+            "",
+            "",
+            f"Loaded `{path.name}`, but parsing failed: {detail}",
+            language,
+        )
     except ImportError as exc:
-        return source, "", "", f"Loaded `{path.name}`, but Java support is unavailable: install the Tree-sitter dependencies ({html.escape(str(exc))})", language
+        return (
+            source,
+            "",
+            "",
+            f"Loaded `{path.name}`, but Java support is unavailable: install the Tree-sitter dependencies ({str(exc)})",
+            language,
+        )
 
-    return source, "", "", f"Loaded `{path.name}`. Parsed {len(blocks)} declaration(s).", language
+    return (
+        source,
+        "",
+        "",
+        f"Loaded `{path.name}`. Parsed {len(blocks)} declaration(s).",
+        language,
+    )
 
 
 def update_language(language_label: str):
     is_java = language_label == "Java"
     return (
-        gr.update(language=None if is_java else "python", label=f"Original {language_label}"),
-        gr.update(language=None if is_java else "python", label=f"Annotated {language_label}"),
         gr.update(
-            choices=["Base Mellum2 (richer)"] if is_java else list(MODEL_LABELS),
-            value="Base Mellum2 (richer)",
+            language=None if is_java else "python", label=f"Original {language_label}"
         ),
-        cli_markup(language_label),
+        gr.update(
+            language=None if is_java else "python", label=f"Annotated {language_label}"
+        ),
+        gr.update(
+            choices=[MODEL_CHOICES[0]] if is_java else MODEL_CHOICES,
+            value=MODEL_CHOICES[0],
+        ),
+        cli_markup(),
         "",
         "",
     )
@@ -123,42 +175,46 @@ def build_app() -> gr.Blocks:
                 """
                 <header id="btl-title">
                   <h1>between-the-lines</h1>
-                  <p>Annotate Python and Java files from the web or terminal. The model proposes comments for parsed declarations, and the app checks that the code structure is unchanged.</p>
+                  <p>Add clear comments to Python and Java files. The app checks that Python's AST or Java's syntax tree stays unchanged after annotation.</p>
                 </header>
                 """
             )
-            cli_command = gr.HTML(cli_markup("Python"))
+            cli_command = gr.HTML(cli_markup())
 
             with gr.Row(equal_height=False, elem_id="btl-controls"):
                 upload_file = gr.File(
                     label="Upload Python or Java File",
                     file_types=[".py", ".java"],
                     elem_classes=["btl-upload"],
-                    scale=2,
+                    scale=3,
                 )
-                language_choice = gr.Dropdown(
-                    label="Language",
-                    choices=["Python", "Java"],
-                    value="Python",
-                    interactive=True,
-                    elem_id="language_choice",
-                    scale=1,
-                )
-                model_choice = gr.Dropdown(
-                    label="Comment Model",
-                    choices=list(MODEL_LABELS),
-                    value="Base Mellum2 (richer)",
-                    interactive=True,
-                    elem_id="model_choice",
-                    scale=1,
-                )
+                with gr.Column(elem_id="btl-options", scale=2):
+                    language_choice = gr.Dropdown(
+                        label="Language",
+                        choices=["Python", "Java"],
+                        value="Python",
+                        interactive=True,
+                        elem_id="language_choice",
+                    )
+                    model_choice = gr.Dropdown(
+                        label="Comment Model",
+                        choices=MODEL_CHOICES,
+                        value=MODEL_CHOICES[0],
+                        interactive=True,
+                        elem_id="model_choice",
+                    )
 
             with gr.Row(equal_height=False, elem_id="btl-actions"):
                 run_button = gr.Button("Annotate", variant="primary", scale=1)
                 clear_button = gr.ClearButton(value="Clear", components=[], scale=1)
+                # Textboxes preserve source whitespace and accept older CLI model labels.
+                api_source = gr.Textbox(visible=False)
+                api_output = gr.Textbox(visible=False)
+                api_model = gr.Textbox(visible=False)
+                multilang_api_button = gr.Button(visible=False)
                 legacy_api_button = gr.Button(visible=False)
 
-            with gr.Row(equal_height=True):
+            with gr.Row(equal_height=True, elem_id="btl-editors"):
                 with gr.Column(scale=1):
                     input_code = gr.Code(
                         label="Original Python",
@@ -175,8 +231,10 @@ def build_app() -> gr.Blocks:
                         elem_id="output_code",
                     )
 
-            with gr.Row(equal_height=True):
-                summary = gr.Textbox(label="File Summary", lines=3, elem_id="summary_box")
+            with gr.Row(equal_height=True, elem_id="btl-results"):
+                summary = gr.Textbox(
+                    label="File Summary", lines=3, elem_id="summary_box"
+                )
                 status = gr.Textbox(label="Validation", lines=3, elem_id="status_box")
 
             clear_button.add([input_code, output_code, summary, status])
@@ -185,13 +243,19 @@ def build_app() -> gr.Blocks:
                 annotate_code_with_language,
                 inputs=[input_code, model_choice, language_choice],
                 outputs=[summary, output_code, status],
+                api_name=False,
+            )
+            multilang_api_button.click(
+                annotate_code_with_language,
+                inputs=[api_source, api_model, language_choice],
+                outputs=[summary, api_output, status],
                 api_name="annotate_multilang",
             )
             # Existing published CLI versions still call this two-argument API.
             legacy_api_button.click(
                 annotate_code,
-                inputs=[input_code, model_choice],
-                outputs=[summary, output_code, status],
+                inputs=[api_source, api_model],
+                outputs=[summary, api_output, status],
                 api_name="annotate",
             )
             upload_file.upload(
@@ -202,7 +266,14 @@ def build_app() -> gr.Blocks:
             language_choice.change(
                 update_language,
                 inputs=language_choice,
-                outputs=[input_code, output_code, model_choice, cli_command, summary, status],
+                outputs=[
+                    input_code,
+                    output_code,
+                    model_choice,
+                    cli_command,
+                    summary,
+                    status,
+                ],
             )
             language_choice.input(
                 lambda: ("", "", ""),
@@ -222,6 +293,6 @@ demo = build_app()
 if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=int(os.getenv("GRADIO_SERVER_PORT", "7860")),
         inbrowser=False,
     )

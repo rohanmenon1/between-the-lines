@@ -9,6 +9,12 @@ description = "Annotate Python and Java files with small-model comments and synt
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "tree-sitter>=0.25,<0.26",
+    "tree-sitter-java>=0.23,<0.24",
+]
+
+[project.optional-dependencies]
+space = [
     "accelerate",
     "bitsandbytes==0.49.0",
     "gradio==5.50.0",
@@ -19,9 +25,10 @@ dependencies = [
     "torch",
     "transformers @ git+https://github.com/huggingface/transformers.git",
     "truststore",
-    "tree-sitter>=0.25,<0.26",
-    "tree-sitter-java>=0.23,<0.24",
 ]
+
+[project.scripts]
+git-btl = "btl.git_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["btl*"]

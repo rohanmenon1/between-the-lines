@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from .annotate import AnnotationResult, BlockInfo, generate_summary
+from .core import AnnotationResult, BlockInfo, generate_summary, insert_comments
 from .model import ModelUnavailableError, generate_comment
 
 
@@ -58,6 +58,13 @@ def java_syntax_fingerprint(source: str):
     return _fingerprint(tree.root_node, source.encode("utf-8"))
 
 
+def _has_preceding_java_comment(lines: list[str], row: int) -> bool:
+    if row == 0:
+        return False
+    preceding = lines[row - 1].strip()
+    return preceding.startswith("//") or preceding.endswith("*/")
+
+
 def collect_java_blocks(tree, source: str) -> list[BlockInfo]:
     """Find declarations that can receive a comment without moving code."""
     lines = source.splitlines()
@@ -75,9 +82,21 @@ def collect_java_blocks(tree, source: str) -> list[BlockInfo]:
                 if not line_prefix.strip():
                     name_node = node.child_by_field_name("name")
                     if name_node is not None:
-                        name = source_bytes[name_node.start_byte : name_node.end_byte].decode("utf-8")
-                        block_source = source_bytes[node.start_byte : node.end_byte].decode("utf-8")
-                        blocks.append(BlockInfo(kind, name, row + 1, block_source))
+                        name = source_bytes[
+                            name_node.start_byte : name_node.end_byte
+                        ].decode("utf-8")
+                        block_source = source_bytes[
+                            node.start_byte : node.end_byte
+                        ].decode("utf-8")
+                        blocks.append(
+                            BlockInfo(
+                                kind,
+                                name,
+                                row + 1,
+                                block_source,
+                                _has_preceding_java_comment(lines, row),
+                            )
+                        )
         for child in node.children:
             visit(child)
 
@@ -85,24 +104,17 @@ def collect_java_blocks(tree, source: str) -> list[BlockInfo]:
     return sorted(blocks, key=lambda block: block.lineno)
 
 
-def _insert_comments(source: str, comments: dict[int, str]) -> str:
-    lines = source.splitlines(keepends=True)
-    newline = "\r\n" if "\r\n" in source else "\n"
-    output: list[str] = []
-    for line_number, line in enumerate(lines, start=1):
-        comment = comments.get(line_number)
-        if comment is not None:
-            indent = line[: len(line) - len(line.lstrip())]
-            output.append(indent + comment + newline)
-        output.append(line)
-    return "".join(output)
-
-
 def annotate_java(source: str, model_choice: str = "base") -> AnnotationResult:
     if not source.strip():
         return AnnotationResult("", "", "Paste a Java file to annotate.", False, 0)
-    if model_choice != "base":
-        return AnnotationResult("", source, "Java currently supports only the base Mellum2 model; the LoRA adapter was trained on Python.", False, 0)
+    if model_choice not in {"base", "local"}:
+        return AnnotationResult(
+            "",
+            source,
+            "Java currently supports only the base Mellum2 model; the LoRA adapter was trained on Python.",
+            False,
+            0,
+        )
 
     try:
         tree = parse_java(source)
@@ -110,7 +122,9 @@ def annotate_java(source: str, model_choice: str = "base") -> AnnotationResult:
         return AnnotationResult("", source, f"Java syntax error: {exc}", False, 0)
 
     blocks = collect_java_blocks(tree, source)
-    summary, summary_notes = generate_summary(source, blocks, "base", language="java")
+    summary, summary_notes = generate_summary(
+        source, blocks, model_choice, language="java"
+    )
     if not blocks:
         status = "Parsed successfully. No standalone Java declarations to annotate."
         if summary_notes:
@@ -120,29 +134,63 @@ def annotate_java(source: str, model_choice: str = "base") -> AnnotationResult:
     comments: dict[int, str] = {}
     notes = list(summary_notes)
     for block in blocks:
+        if block.documented:
+            continue
         try:
-            comment = generate_comment(block.kind, block.name, block.source, variant="base", language="java")
+            comment = generate_comment(
+                block.kind,
+                block.name,
+                block.source,
+                variant=model_choice,
+                language="java",
+            )
         except ModelUnavailableError:
             raise
         except Exception as exc:
-            comment = f"// TODO(model): Could not explain {block.kind} {block.name}."
-            notes.append(f"{block.name}: model generation failed ({type(exc).__name__}).")
+            notes.append(
+                f"{block.name}: model generation failed ({type(exc).__name__})."
+            )
+            continue
+        if not comment.strip("/ "):
+            notes.append(f"{block.name}: model returned an empty comment.")
+            continue
         # Java processes Unicode escapes before tokenization, including inside
         # comments. An escape in generated text could change the code below it.
-        if not comment.startswith("// ") or "\n" in comment or "\r" in comment or "\\u" in comment:
-            return AnnotationResult(summary, source, "Rejected: generated Java comment contains unsafe syntax.", False, len(blocks), tuple(notes))
+        if (
+            not comment.startswith("// ")
+            or "\n" in comment
+            or "\r" in comment
+            or "\\u" in comment
+        ):
+            return AnnotationResult(
+                summary,
+                source,
+                "Rejected: generated Java comment contains unsafe syntax.",
+                False,
+                len(blocks),
+                tuple(notes),
+            )
         comments[block.lineno] = comment
 
-    annotated = _insert_comments(source, comments)
+    annotated = insert_comments(source, comments)
     try:
-        same_tree = java_syntax_fingerprint(source) == java_syntax_fingerprint(annotated)
+        same_tree = java_syntax_fingerprint(source) == java_syntax_fingerprint(
+            annotated
+        )
     except SyntaxError:
         same_tree = False
     status = (
-        f"Validated: parsed {len(blocks)} Java declaration(s), inserted comments, non-comment syntax tree unchanged."
+        f"Validated: parsed {len(blocks)} Java declaration(s), inserted {len(comments)} comment(s), non-comment syntax tree unchanged."
         if same_tree
         else "Rejected: annotation changed or broke the Java syntax tree."
     )
     if notes:
         status += "\n" + "\n".join(notes)
-    return AnnotationResult(summary, annotated if same_tree else source, status, same_tree, len(blocks), tuple(notes))
+    return AnnotationResult(
+        summary,
+        annotated if same_tree else source,
+        status,
+        same_tree,
+        len(blocks),
+        tuple(notes),
+    )
