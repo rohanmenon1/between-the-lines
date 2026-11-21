@@ -1,0 +1,196 @@
+{
+  "name": "between-the-lines",
+  "displayName": "between-the-lines",
+  "description": "Write comments from captured coding prompts and changed Python or Java code, with AST checks and local or custom inference.",
+  "version": "0.4.2",
+  "publisher": "between-the-lines-dev",
+  "preview": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "between-the-lines",
+          "title": "between-the-lines",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "between-the-lines": [
+        {
+          "id": "between-the-lines.sidebar",
+          "name": "between-the-lines",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "between-the-lines.configureProvider",
+        "title": "between-the-lines: Configure Model Provider"
+      },
+      {
+        "command": "between-the-lines.setup",
+        "title": "between-the-lines: Prepare Local Model"
+      },
+      {
+        "command": "between-the-lines.analyzeFile",
+        "title": "between-the-lines: Analyze Current File"
+      },
+      {
+        "command": "between-the-lines.setIntent",
+        "title": "between-the-lines: Set Task Context"
+      },
+      {
+        "command": "between-the-lines.selectCapturedIntent",
+        "title": "between-the-lines: Select Captured Prompt"
+      },
+      {
+        "command": "between-the-lines.connectCodex",
+        "title": "between-the-lines: Connect Codex"
+      },
+      {
+        "command": "between-the-lines.connectCopilot",
+        "title": "between-the-lines: Connect Copilot"
+      },
+      {
+        "command": "between-the-lines.unloadModel",
+        "title": "between-the-lines: Unload Local Model"
+      },
+      {
+        "command": "between-the-lines.toggleAutomatic",
+        "title": "between-the-lines: Toggle Analysis on Save"
+      },
+      {
+        "command": "between-the-lines.toggleAutomaticAnnotations",
+        "title": "between-the-lines: Toggle Connected-Agent Annotations"
+      },
+      {
+        "command": "between-the-lines.scanObservedEdits",
+        "title": "between-the-lines: Check Completed Agent Edits"
+      },
+      {
+        "command": "between-the-lines.reviewRequirements",
+        "title": "between-the-lines: Review Recorded Requirements"
+      }
+    ],
+    "configuration": {
+      "title": "between-the-lines",
+      "properties": {
+        "between-the-lines.automatic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Analyze saved Python and Java changes after choosing a provider and task context. Annotations always require review."
+        },
+        "between-the-lines.debounceMs": {
+          "type": "number",
+          "default": 1800,
+          "minimum": 300,
+          "maximum": 10000,
+          "description": "Wait after a save before analyzing, in milliseconds."
+        },
+        "between-the-lines.maxSuggestions": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Maximum manual suggestions per analysis. Each analysis makes at most twice this many model calls."
+        },
+        "between-the-lines.inferenceThreads": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "CPU threads for local inference. Restart the worker with Unload Local Model after changing this."
+        },
+        "between-the-lines.idleSeconds": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Unload model memory after this many idle seconds."
+        },
+        "between-the-lines.provider": {
+          "type": "string",
+          "enum": [
+            "local",
+            "custom"
+          ],
+          "default": "local",
+          "scope": "application",
+          "description": "Use the bundled CPU model or an explicitly configured custom chat-completions API. Configure Model Provider guides setup."
+        },
+        "between-the-lines.endpoint": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Full custom chat-completions endpoint URL. HTTPS is required except on loopback. Automatic comments send captured prompts and changed code here; manual analysis also sends selected context files."
+        },
+        "between-the-lines.model": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Model identifier accepted by the custom endpoint. Store API keys with Configure Model Provider, never in settings."
+        },
+        "between-the-lines.automaticAnnotations": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Use the selected model to write comments from captured prompts and verified Codex edits after each completed turn. Requires connected hooks and a prepared local model or configured custom endpoint."
+        },
+        "between-the-lines.automaticCustomProvider": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Allow automatic requests to the custom endpoint. Requires approval for this endpoint and model through Configure Model Provider on this installation."
+        },
+        "between-the-lines.automaticCommentsPerFile": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 3,
+          "scope": "application",
+          "description": "Maximum changed blocks to comment per file and agent turn. Each block uses generation and verification calls; raise this only if the extra local CPU time or API requests are acceptable."
+        }
+      }
+    }
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "check": "tsc -p . --noEmit",
+    "test": "npm run compile && node --test dist/test/*.test.js",
+    "vscode:prepublish": "npm run compile",
+    "package": "python scripts/package_extension.py",
+    "build:worker": "python scripts/build_worker.py",
+    "package:local": "python scripts/package_extension.py",
+    "package:source": "python scripts/package_extension_source.py"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.7.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,41 @@
+name: VSIX Windows smoke test
+on:
+  push:
+    branches: [test/vsix-0.4.2]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: release-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run compile
+      - name: Install VS Code
+        run: |
+          curl.exe --fail --location --retry 2 'https://update.code.visualstudio.com/1.143.0/win32-x64-archive/stable' --output "$env:RUNNER_TEMP/code.zip"
+          if ($LASTEXITCODE -ne 0) { throw "VS Code download failed" }
+          Expand-Archive -LiteralPath "$env:RUNNER_TEMP/code.zip" -DestinationPath "$env:RUNNER_TEMP/vscode"
+          "$env:RUNNER_TEMP/vscode/bin" >> $env:GITHUB_PATH
+      - name: Verify package and download pinned local model
+        run: |
+          $vsix = 'between-the-lines-0.4.2-win32-x64.vsix'
+          if ((Get-FileHash -LiteralPath $vsix).Hash.ToLowerInvariant() -ne 'c4f9fcc97796c53aad9adf0047edf43ae5636713b537618481a194e9519f8972') { throw "VSIX checksum mismatch" }
+          $model = Get-Content config/model.json -Raw | ConvertFrom-Json
+          New-Item -ItemType Directory -Path models -Force | Out-Null
+          curl.exe --fail --location --retry 2 --max-time 300 $model.url --output "models/$($model.filename)"
+          if ($LASTEXITCODE -ne 0) { throw "Local model download failed" }
+      - name: Exercise installed extension
+        run: |
+          try { ./scripts/test_editor.ps1 -Vsix './between-the-lines-0.4.2-win32-x64.vsix' }
+          finally {
+            Get-ChildItem -Path 'artifacts/editor-test-*/report.json' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content -LiteralPath $_.FullName }
+          }
