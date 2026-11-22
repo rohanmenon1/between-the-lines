@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -9,7 +9,7 @@ import { ObservedEdit, readObservedEdits, readObservedEditsDetailed } from "../a
 const hash = (source: string): string => createHash("sha256").update(source).digest("hex");
 
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "between-the-lines-events-"));
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "between-the-lines-events-")));
   const workspace = join(directory, "workspace");
   const inbox = join(directory, "inbox");
   await mkdir(workspace); await mkdir(inbox);
