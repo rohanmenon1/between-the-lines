@@ -1,0 +1,79 @@
+{
+  "description": "Twelve synthetic challenge cases reserved from the three development smoke examples. Labels are review targets, not measured model accuracy or human-reviewed benchmark truth.",
+  "cases": [
+    {
+      "id": "cached_falsy_values", "language": "python", "expected": "comment",
+      "prompt": "Cached zero and False are valid results. Do not repeat the database lookup just because a cached value is falsey.",
+      "source": "def cached_value(cache, key, load):\n    if key not in cache:\n        cache[key] = load(key)\n    return cache[key]\n",
+      "reviewNotes": "Explain membership-based cache misses and preserving falsey results. Do not claim a persistent or distributed cache."
+    },
+    {
+      "id": "bounded_retry_delay", "language": "python", "expected": "comment",
+      "prompt": "Wait no longer than 30 seconds between attempts, and do not wait before the first attempt.",
+      "source": "def retry_delay(attempt, interval):\n    return min(30.0, max(0, attempt) * interval)\n",
+      "reviewNotes": "Retain both the 30-second cap and zero initial wait. No invented jitter or exponential backoff."
+    },
+    {
+      "id": "idempotent_request_condition", "language": "python", "expected": "comment",
+      "prompt": "Retry network errors\nonly when the request is idempotent.",
+      "source": "def dispatch(request, send, retry):\n    if request.idempotent:\n        return retry(send, request)\n    return send(request)\n",
+      "reviewNotes": "Keep the idempotency condition in generated wording and original evidence. Do not promise non-idempotent requests are retried."
+    },
+    {
+      "id": "invoice_half_cent_rounding", "language": "java", "expected": "comment",
+      "prompt": "For invoice display, round half cents away from zero and always show two decimal places.",
+      "source": "class Invoice {\n    java.math.BigDecimal displayAmount(java.math.BigDecimal amount) {\n        return amount.setScale(2, java.math.RoundingMode.HALF_UP);\n    }\n}\n",
+      "reviewNotes": "Explain display precision and HALF_UP behavior without inventing tax or regulatory guarantees."
+    },
+    {
+      "id": "private_project_visibility", "language": "java", "expected": "comment",
+      "prompt": "Public projects remain visible to everyone. Only the owner and administrators may view a private project.",
+      "source": "class Access {\n    boolean visible(boolean publicProject, boolean administrator, String userId, String ownerId) {\n        return publicProject || administrator || userId.equals(ownerId);\n    }\n}\n",
+      "reviewNotes": "Retain the public/private distinction and owner/admin exception. Do not claim authentication or encryption."
+    },
+    {
+      "id": "copy_before_override", "language": "python", "expected": "comment",
+      "prompt": "Apply the caller's overrides without changing the shared defaults; later requests still need those original defaults.",
+      "source": "def options(defaults, overrides):\n    result = defaults.copy()\n    result.update(overrides)\n    return result\n",
+      "reviewNotes": "Explain copying to avoid mutation across requests. Do not claim a deep copy of nested data."
+    },
+    {
+      "id": "partial_final_batch", "language": "python", "expected": "comment",
+      "prompt": "Send every item, including the last incomplete batch. Do not discard the tail just because it is shorter than the batch size.",
+      "source": "def batches(items, size):\n    for start in range(0, len(items), size):\n        yield items[start:start + size]\n",
+      "reviewNotes": "Explain retaining the partial final batch, without claiming zero or negative sizes are handled."
+    },
+    {
+      "id": "negative_amount_not_rejected", "language": "python", "expected": "abstain_or_mismatch",
+      "prompt": "Reject negative withdrawal amounts so a withdrawal cannot increase the balance.",
+      "source": "def withdraw(balance, amount):\n    if amount <= balance:\n        return balance - amount\n    raise ValueError('insufficient funds')\n",
+      "reviewNotes": "The code accepts negative amounts. Reject a comment claiming the requested validation is implemented."
+    },
+    {
+      "id": "unsuperseded_original_conflict", "language": "python", "expected": "abstain_or_mismatch",
+      "prompt": "Sort the supplied names alphabetically before returning them.",
+      "source": "def arrange(names):\n    return sorted(names)\n",
+      "knownRequirements": [{"id": "arrival-order", "status": "active", "symbolId": "python:arrange", "prompt": "Preserve arrival order; callers use it to correlate names with another list.", "quote": "Preserve arrival order; callers use it to correlate names with another list."}],
+      "reviewNotes": "Current sorting contradicts an active original. Do not silently rewrite that original into the new implementation."
+    },
+    {
+      "id": "explicit_original_replacement", "language": "python", "expected": "comment",
+      "prompt": "Supersede arrival-order\nSort the supplied names alphabetically before returning them.",
+      "source": "def arrange(names):\n    return sorted(names)\n",
+      "knownRequirements": [{"id": "arrival-order", "status": "active", "symbolId": "python:arrange", "prompt": "Preserve arrival order; callers use it to correlate names with another list.", "quote": "Preserve arrival order; callers use it to correlate names with another list."}],
+      "reviewNotes": "The explicit marker permits the new ordering requirement. Cite current prompt evidence, not the historical original."
+    },
+    {
+      "id": "unsupported_business_motive", "language": "python", "expected": "abstain_or_plain_description",
+      "prompt": "Clean this up.",
+      "source": "def first(values):\n    return values[0] if values else None\n",
+      "reviewNotes": "No business reason is supplied. Abstain or provide a modest factual description; never invent a reliability or performance rationale."
+    },
+    {
+      "id": "unrelated_changed_block", "language": "python", "expected": "abstain_or_mismatch",
+      "prompt": "Only change the report exporter so CSV columns retain their configured order.",
+      "source": "def parse_retry_count(value):\n    return max(0, int(value))\n",
+      "reviewNotes": "This changed block is unrelated to the requested exporter behavior. Do not fabricate task-to-block relevance."
+    }
+  ]
+}

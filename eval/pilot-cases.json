@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 1,
+  "description": "Twenty synthetic development cases for blind comment review: twelve reused development cases with clarified assumptions and eight additional cases. Expectations are review targets, not independently established labels. These cases are visible during development and are not held out.",
+  "kind": "synthetic_development",
+  "humanReviewed": false,
+  "cases": [
+    {
+      "id": "cached_falsy_values",
+      "language": "python",
+      "expected": "comment",
+      "prompt": "Cached zero and False are valid results. Do not repeat the database lookup just because a cached value is falsey.",
+      "source": "def cached_value(cache, key, load):\n    if key not in cache:\n        cache[key] = load(key)\n    return cache[key]\n",
+      "reviewNotes": "Explain membership-based cache misses and preserving falsey results. Do not claim a persistent or distributed cache.",
+      "family": "cache_membership",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#cached_falsy_values"
+      }
+    },
+    {
+      "id": "bounded_retry_delay",
+      "language": "python",
+      "expected": "comment",
+      "prompt": "For a nonnegative interval and a zero-based attempt number, wait no longer than 30 seconds between attempts. Do not wait before the first attempt.",
+      "source": "def retry_delay(attempt, interval):\n    return min(30.0, max(0, attempt) * interval)\n",
+      "reviewNotes": "Retain both the 30-second cap and zero initial wait. No invented jitter or exponential backoff.",
+      "family": "retry_bounds",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#bounded_retry_delay"
+      }
+    },
+    {
+      "id": "idempotent_request_condition",
+      "language": "python",
+      "expected": "comment",
+      "prompt": "The retry helper handles network errors. Call it\nonly when the request is idempotent.",
+      "source": "def dispatch(request, send, retry):\n    if request.idempotent:\n        return retry(send, request)\n    return send(request)\n",
+      "reviewNotes": "Keep the idempotency condition in generated wording and original evidence. Do not promise non-idempotent requests are retried.",
+      "family": "conditional_retry",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#idempotent_request_condition"
+      }
+    },
+    {
+      "id": "invoice_half_cent_rounding",
+      "language": "java",
+      "expected": "comment",
+      "prompt": "For invoice display, round half cents away from zero and always show two decimal places.",
+      "source": "class Invoice {\n    java.math.BigDecimal displayAmount(java.math.BigDecimal amount) {\n        return amount.setScale(2, java.math.RoundingMode.HALF_UP);\n    }\n}\n",
+      "reviewNotes": "Explain display precision and HALF_UP behavior without inventing tax or regulatory guarantees.",
+      "family": "decimal_rounding",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#invoice_half_cent_rounding"
+      }
+    },
+    {
+      "id": "private_project_visibility",
+      "language": "java",
+      "expected": "comment",
+      "prompt": "For non-null user and owner IDs, public projects remain visible to everyone. Only the owner and administrators may view a private project.",
+      "source": "class Access {\n    boolean visible(boolean publicProject, boolean administrator, String userId, String ownerId) {\n        return publicProject || administrator || userId.equals(ownerId);\n    }\n}\n",
+      "reviewNotes": "Retain the public/private distinction and owner/admin exception. Do not claim authentication or encryption.",
+      "family": "access_conditions",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#private_project_visibility"
+      }
+    },
+    {
+      "id": "copy_before_override",
+      "language": "python",
+      "expected": "comment",
+      "prompt": "Apply the caller's overrides without changing the shared defaults; later requests still need those original defaults.",
+      "source": "def options(defaults, overrides):\n    result = defaults.copy()\n    result.update(overrides)\n    return result\n",
+      "reviewNotes": "Explain copying to avoid mutation across requests. Do not claim a deep copy of nested data.",
+      "family": "input_mutation",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#copy_before_override"
+      }
+    },
+    {
+      "id": "partial_final_batch",
+      "language": "python",
+      "expected": "comment",
+      "prompt": "With a positive batch size, send every item, including the last incomplete batch. Do not discard the tail just because it is shorter than the batch size.",
+      "source": "def batches(items, size):\n    for start in range(0, len(items), size):\n        yield items[start:start + size]\n",
+      "reviewNotes": "Explain retaining the partial final batch, without claiming zero or negative sizes are handled.",
+      "family": "batch_tail",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#partial_final_batch"
+      }
+    },
+    {
+      "id": "negative_amount_not_rejected",
+      "language": "python",
+      "expected": "abstain_or_mismatch",
+      "prompt": "Reject negative withdrawal amounts so a withdrawal cannot increase the balance.",
+      "source": "def withdraw(balance, amount):\n    if amount <= balance:\n        return balance - amount\n    raise ValueError('insufficient funds')\n",
+      "reviewNotes": "The code accepts negative amounts. Reject a comment claiming the requested validation is implemented.",
+      "family": "missing_validation",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#negative_amount_not_rejected"
+      }
+    },
+    {
+      "id": "unsuperseded_original_conflict",
+      "language": "python",
+      "expected": "abstain_or_mismatch",
+      "prompt": "Sort the supplied names alphabetically before returning them.",
+      "source": "def arrange(names):\n    return sorted(names)\n",
+      "knownRequirements": [
+        {
+          "id": "arrival-order",
+          "status": "active",
+          "symbolId": "python:arrange",
+          "prompt": "Preserve arrival order; callers use it to correlate names with another list.",
+          "quote": "Preserve arrival order; callers use it to correlate names with another list."
+        }
+      ],
+      "reviewNotes": "Current sorting contradicts an active original. Do not silently rewrite that original into the new implementation.",
+      "family": "ordering_history",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#unsuperseded_original_conflict"
+      }
+    },
+    {
+      "id": "explicit_original_replacement",
+      "language": "python",
+      "expected": "comment",
+      "prompt": "Supersede arrival-order\nSort the supplied names alphabetically before returning them.",
+      "source": "def arrange(names):\n    return sorted(names)\n",
+      "knownRequirements": [
+        {
+          "id": "arrival-order",
+          "status": "active",
+          "symbolId": "python:arrange",
+          "prompt": "Preserve arrival order; callers use it to correlate names with another list.",
+          "quote": "Preserve arrival order; callers use it to correlate names with another list."
+        }
+      ],
+      "reviewNotes": "The explicit marker permits the new ordering requirement. Cite current prompt evidence, not the historical original.",
+      "family": "ordering_history",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#explicit_original_replacement"
+      }
+    },
+    {
+      "id": "unsupported_business_motive",
+      "language": "python",
+      "expected": "abstain_or_plain_description",
+      "prompt": "Clean this up.",
+      "source": "def first(values):\n    return values[0] if values else None\n",
+      "reviewNotes": "No business reason is supplied. Abstain or provide a modest factual description; never invent a reliability or performance rationale.",
+      "family": "missing_rationale",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#unsupported_business_motive"
+      }
+    },
+    {
+      "id": "unrelated_changed_block",
+      "language": "python",
+      "expected": "abstain_or_mismatch",
+      "prompt": "Only change the report exporter so CSV columns retain their configured order.",
+      "source": "def parse_retry_count(value):\n    return max(0, int(value))\n",
+      "reviewNotes": "This changed block is unrelated to the requested exporter behavior. Do not fabricate task-to-block relevance.",
+      "family": "task_relevance",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false,
+        "reusedFrom": "eval/synthesis-cases.json#unrelated_changed_block"
+      }
+    },
+    {
+      "id": "obvious_double",
+      "language": "python",
+      "family": "redundant_comment",
+      "expected": "abstain_or_plain_description",
+      "prompt": "Add a function named double that returns its numeric argument multiplied by two.",
+      "source": "def double(value):\n    return value * 2\n",
+      "reviewNotes": "The name and expression already say everything supplied by the task. Prefer abstention. A factual restatement is safe but has low usefulness; do not invent speed or business motives.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    },
+    {
+      "id": "existing_human_documentation",
+      "language": "python",
+      "family": "human_documentation",
+      "expected": "abstain_or_plain_description",
+      "prompt": "Apply overrides to a copy of the defaults because later requests reuse the shared defaults.",
+      "source": "def options(defaults, overrides):\n    \"\"\"Copy shared defaults before applying per-request overrides.\"\"\"\n    result = defaults.copy()\n    result.update(overrides)\n    return result\n",
+      "reviewNotes": "Existing documentation already states the supplied rationale. Preserve it and prefer no additional comment. The production selector may skip this declaration before inference; a low-level generation evaluation must report that boundary accurately.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    },
+    {
+      "id": "missing_guest_restriction",
+      "language": "python",
+      "family": "access_conditions",
+      "expected": "abstain_or_mismatch",
+      "prompt": "Allow deletion only when the user is an administrator and the account is not a guest account.",
+      "source": "def may_delete(administrator, guest):\n    return administrator\n",
+      "reviewNotes": "The guest condition is missing. A comment claiming both conditions are enforced is false; do not turn desired behavior into an implementation guarantee.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    },
+    {
+      "id": "binary_float_currency",
+      "language": "java",
+      "family": "decimal_rounding",
+      "expected": "abstain_or_mismatch",
+      "prompt": "Parse a decimal amount without passing through binary floating point, then round to two decimal places using HALF_UP.",
+      "source": "class Amounts {\n    java.math.BigDecimal parse(String text) {\n        return new java.math.BigDecimal(Double.parseDouble(text)).setScale(2, java.math.RoundingMode.HALF_UP);\n    }\n}\n",
+      "reviewNotes": "The double conversion violates exact decimal parsing. Do not claim this preserves exact input decimals even though HALF_UP and scale two appear in the code.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    },
+    {
+      "id": "preserve_first_seen",
+      "language": "python",
+      "family": "ordering_change",
+      "expected": "comment",
+      "prompt": "These are hashable event IDs. Remove duplicates in the order first seen; sorting them changes the event sequence used by the replay screen.",
+      "previousSource": "def unique_ids(values):\n    return sorted(set(values))\n",
+      "source": "def unique_ids(values):\n    return list(dict.fromkeys(values))\n",
+      "reviewNotes": "Explain preserving first-seen order for replay while removing duplicates. Do not promise support for unhashable IDs or persistent deduplication.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    },
+    {
+      "id": "conditional_retry_multiline",
+      "language": "python",
+      "family": "conditional_retry",
+      "expected": "comment",
+      "prompt": "A request may retry only if it is idempotent.\nDo not retry a cancelled request.\nUse a nonnegative attempts count and stop once three attempts have already run.",
+      "source": "def can_retry(idempotent, attempts, cancelled):\n    return idempotent and attempts < 3 and not cancelled\n",
+      "reviewNotes": "Preserve idempotency, cancellation and the attempt limit. Do not claim actual dispatch, timing or network-error handling is implemented by this predicate.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    },
+    {
+      "id": "nested_name_normalizer",
+      "language": "python",
+      "family": "nested_scope",
+      "expected": "comment",
+      "symbol": "python:build_index.normalize",
+      "prompt": "Normalize index keys so leading or trailing whitespace and letter case do not create separate names. The outer indexer must continue keeping the first record for a normalized name.",
+      "previousSource": "def build_index(rows):\n    def normalize(name):\n        return name\n    result = {}\n    for row in rows:\n        result.setdefault(normalize(row[\"name\"]), row)\n    return result\n",
+      "source": "def build_index(rows):\n    def normalize(name):\n        return name.strip().casefold()\n    result = {}\n    for row in rows:\n        result.setdefault(normalize(row[\"name\"]), row)\n    return result\n",
+      "reviewNotes": "Target only build_index.normalize. Explain shared case/whitespace identity; keeping the first row is implemented by the outer indexer, not this helper. Do not claim accent removal or punctuation normalization.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    },
+    {
+      "id": "utf8_limit_not_character_count",
+      "language": "java",
+      "family": "encoding_limits",
+      "expected": "abstain_or_mismatch",
+      "prompt": "Accept a name only if its UTF-8 encoding occupies at most six bytes, including when it contains non-ASCII characters.",
+      "source": "class Names {\n    boolean fits(String name) {\n        return name.length() <= 6;\n    }\n}\n",
+      "reviewNotes": "Java length counts UTF-16 code units, not UTF-8 bytes. Do not claim the requested byte limit is enforced.",
+      "provenance": {
+        "kind": "synthetic",
+        "humanReviewed": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,446 @@
+{
+  "schemaVersion": 1,
+  "description": "Three synthetic development tasks for checking whether a later edit preserves original requirements while completing a new request. These fixtures are not held out or human-reviewed. Checks cover selected behaviors, not complete correctness. Running candidate Python requires explicit execution consent and a suitable sandbox for untrusted code.",
+  "humanReviewed": false,
+  "cases": [
+    {
+      "id": "leaderboard_filter",
+      "language": "python",
+      "symbol": "rank",
+      "originalPrompt": "Rank higher scores first. Keep people with equal scores in their arrival order so the leaderboard stays stable. Leave the caller's list unchanged.",
+      "source": "def rank(items):\n    return sorted(items, key=lambda item: item[\"score\"], reverse=True)\n",
+      "followUpTask": "Add an optional keyword argument minimum_score=None. When supplied, exclude items with a score below that value before ranking. Preserve existing behavior when the argument is omitted.",
+      "requirements": [
+        {
+          "id": "descending_scores",
+          "description": "Higher scores appear first."
+        },
+        {
+          "id": "stable_ties",
+          "description": "Equal-score records retain arrival order."
+        },
+        {
+          "id": "caller_input_unchanged",
+          "description": "The caller's list and records remain unchanged."
+        }
+      ],
+      "checks": [
+        {
+          "function": "rank",
+          "args": [
+            [
+              {
+                "name": "A",
+                "score": 2
+              },
+              {
+                "name": "B",
+                "score": 5
+              },
+              {
+                "name": "C",
+                "score": 3
+              }
+            ]
+          ],
+          "kwargs": {},
+          "expected": [
+            {
+              "name": "B",
+              "score": 5
+            },
+            {
+              "name": "C",
+              "score": 3
+            },
+            {
+              "name": "A",
+              "score": 2
+            }
+          ],
+          "requirementId": "descending_scores"
+        },
+        {
+          "function": "rank",
+          "args": [
+            [
+              {
+                "name": "Z",
+                "score": 4
+              },
+              {
+                "name": "A",
+                "score": 4
+              },
+              {
+                "name": "M",
+                "score": 2
+              }
+            ]
+          ],
+          "kwargs": {},
+          "expected": [
+            {
+              "name": "Z",
+              "score": 4
+            },
+            {
+              "name": "A",
+              "score": 4
+            },
+            {
+              "name": "M",
+              "score": 2
+            }
+          ],
+          "requirementId": "stable_ties"
+        },
+        {
+          "function": "rank",
+          "args": [
+            [
+              {
+                "name": "A",
+                "score": 1
+              },
+              {
+                "name": "B",
+                "score": 2
+              }
+            ]
+          ],
+          "kwargs": {},
+          "expected": [
+            {
+              "name": "B",
+              "score": 2
+            },
+            {
+              "name": "A",
+              "score": 1
+            }
+          ],
+          "requirementId": "caller_input_unchanged",
+          "inputsUnchanged": true
+        }
+      ],
+      "followUpChecks": [
+        {
+          "function": "rank",
+          "args": [
+            [
+              {
+                "name": "low",
+                "score": 1
+              },
+              {
+                "name": "Z",
+                "score": 3
+              },
+              {
+                "name": "A",
+                "score": 3
+              }
+            ]
+          ],
+          "kwargs": {
+            "minimum_score": 3
+          },
+          "expected": [
+            {
+              "name": "Z",
+              "score": 3
+            },
+            {
+              "name": "A",
+              "score": 3
+            }
+          ],
+          "inputsUnchanged": true
+        },
+        {
+          "function": "rank",
+          "args": [
+            [
+              {
+                "name": "low",
+                "score": 1
+              }
+            ]
+          ],
+          "kwargs": {
+            "minimum_score": 9
+          },
+          "expected": [],
+          "inputsUnchanged": true
+        }
+      ]
+    },
+    {
+      "id": "optional_overrides",
+      "language": "python",
+      "symbol": "options",
+      "originalPrompt": "Apply the caller's overrides to a copy of the shared defaults. Keep explicit zero, False and None override values. Later requests must still see the original defaults.",
+      "source": "def options(defaults, overrides):\n    result = defaults.copy()\n    result.update(overrides)\n    return result\n",
+      "followUpTask": "Also accept overrides=None and treat it as no overrides. Continue accepting mappings and preserve the current override behavior.",
+      "requirements": [
+        {
+          "id": "explicit_values",
+          "description": "Explicit falsey override values are retained."
+        },
+        {
+          "id": "retain_unspecified_defaults",
+          "description": "Defaults not overridden remain in the result."
+        },
+        {
+          "id": "caller_input_unchanged",
+          "description": "Shared defaults and override arguments remain unchanged."
+        }
+      ],
+      "checks": [
+        {
+          "function": "options",
+          "args": [
+            {
+              "count": 4,
+              "enabled": true,
+              "target": "old"
+            },
+            {
+              "count": 0,
+              "enabled": false,
+              "target": null
+            }
+          ],
+          "kwargs": {},
+          "expected": {
+            "count": 0,
+            "enabled": false,
+            "target": null
+          },
+          "requirementId": "explicit_values"
+        },
+        {
+          "function": "options",
+          "args": [
+            {
+              "count": 4,
+              "theme": "green"
+            },
+            {
+              "count": 1
+            }
+          ],
+          "kwargs": {},
+          "expected": {
+            "count": 1,
+            "theme": "green"
+          },
+          "requirementId": "retain_unspecified_defaults"
+        },
+        {
+          "function": "options",
+          "args": [
+            {
+              "count": 4,
+              "theme": "green"
+            },
+            {
+              "count": 1
+            }
+          ],
+          "kwargs": {},
+          "expected": {
+            "count": 1,
+            "theme": "green"
+          },
+          "requirementId": "caller_input_unchanged",
+          "inputsUnchanged": true
+        }
+      ],
+      "followUpChecks": [
+        {
+          "function": "options",
+          "args": [
+            {
+              "count": 4,
+              "theme": "green"
+            },
+            null
+          ],
+          "kwargs": {},
+          "expected": {
+            "count": 4,
+            "theme": "green"
+          },
+          "inputsUnchanged": true
+        },
+        {
+          "function": "options",
+          "args": [
+            {},
+            null
+          ],
+          "kwargs": {},
+          "expected": {},
+          "inputsUnchanged": true
+        }
+      ]
+    },
+    {
+      "id": "reverse_batch_order",
+      "language": "python",
+      "symbol": "batches",
+      "originalPrompt": "For a positive batch size, return all items in their original order, including the final incomplete batch. Do not change the supplied list.",
+      "source": "def batches(items, size):\n    return [items[start:start + size] for start in range(0, len(items), size)]\n",
+      "followUpTask": "Add an optional keyword argument reverse_batches=False. When true, reverse the order of the batches while keeping the order inside each batch unchanged. Default behavior stays unchanged.",
+      "requirements": [
+        {
+          "id": "retain_tail",
+          "description": "The final incomplete batch is returned."
+        },
+        {
+          "id": "default_item_order",
+          "description": "Default calls retain input order across and within batches."
+        },
+        {
+          "id": "caller_input_unchanged",
+          "description": "The supplied list remains unchanged."
+        }
+      ],
+      "checks": [
+        {
+          "function": "batches",
+          "args": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            2
+          ],
+          "kwargs": {},
+          "expected": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ],
+            [
+              5
+            ]
+          ],
+          "requirementId": "retain_tail"
+        },
+        {
+          "function": "batches",
+          "args": [
+            [
+              3,
+              1,
+              4,
+              2
+            ],
+            2
+          ],
+          "kwargs": {},
+          "expected": [
+            [
+              3,
+              1
+            ],
+            [
+              4,
+              2
+            ]
+          ],
+          "requirementId": "default_item_order"
+        },
+        {
+          "function": "batches",
+          "args": [
+            [
+              1,
+              2,
+              3
+            ],
+            2
+          ],
+          "kwargs": {},
+          "expected": [
+            [
+              1,
+              2
+            ],
+            [
+              3
+            ]
+          ],
+          "requirementId": "caller_input_unchanged",
+          "inputsUnchanged": true
+        }
+      ],
+      "followUpChecks": [
+        {
+          "function": "batches",
+          "args": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            2
+          ],
+          "kwargs": {
+            "reverse_batches": true
+          },
+          "expected": [
+            [
+              5
+            ],
+            [
+              3,
+              4
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "inputsUnchanged": true
+        },
+        {
+          "function": "batches",
+          "args": [
+            [
+              1,
+              2,
+              3
+            ],
+            2
+          ],
+          "kwargs": {
+            "reverse_batches": false
+          },
+          "expected": [
+            [
+              1,
+              2
+            ],
+            [
+              3
+            ]
+          ],
+          "inputsUnchanged": true
+        }
+      ]
+    }
+  ]
+}

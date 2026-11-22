@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "between-the-lines": {
+      "command": "${PLUGIN_ROOT}/runtime/between-the-lines-plugin/between-the-lines-plugin.exe",
+      "args": ["--mcp"],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

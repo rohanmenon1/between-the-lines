@@ -1,0 +1,55 @@
+{
+  "description": "Capture original tasks and verified edits; request one bounded annotation pass from Codex.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' 'between-the-lines: this package requires Windows x64.' >&2",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQAIAAnAHMAYwByAGkAcAB0AHMAXABpAG4AdgBvAGsAZQAtAGgAbwBvAGsALgBwAHMAMQAnACkAIAAtAEUAdgBlAG4AdAAgAFUAcwBlAHIAUAByAG8AbQBwAHQAUwB1AGIAbQBpAHQA",
+            "timeout": 10,
+            "additionalContextLimit": 2500
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' 'between-the-lines: this package requires Windows x64.' >&2",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQAIAAnAHMAYwByAGkAcAB0AHMAXABpAG4AdgBvAGsAZQAtAGgAbwBvAGsALgBwAHMAMQAnACkAIAAtAEUAdgBlAG4AdAAgAFAAcgBlAFQAbwBvAGwAVQBzAGUA",
+            "timeout": 10,
+            "additionalContextLimit": 2500
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' 'between-the-lines: this package requires Windows x64.' >&2",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQAIAAnAHMAYwByAGkAcAB0AHMAXABpAG4AdgBvAGsAZQAtAGgAbwBvAGsALgBwAHMAMQAnACkAIAAtAEUAdgBlAG4AdAAgAFAAbwBzAHQAVABvAG8AbABVAHMAZQA=",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n' 'between-the-lines: this package requires Windows x64.' >&2",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAIAAmACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQAIAAnAHMAYwByAGkAcAB0AHMAXABpAG4AdgBvAGsAZQAtAGgAbwBvAGsALgBwAHMAMQAnACkAIAAtAEUAdgBlAG4AdAAgAFMAdABvAHAA",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

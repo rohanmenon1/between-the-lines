@@ -1,0 +1,70 @@
+name: Build local extension
+
+permissions:
+  contents: read
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: npm ci
+      - name: Install prebuilt CPU runtime and build dependencies
+        run: |
+          python -m pip install --only-binary=:all: llama-cpp-python==0.3.36 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+          python -m pip install -r worker/requirements.txt pyinstaller==6.16.0
+      - run: npm test
+      - run: python -m unittest discover -s worker/tests -v
+        env:
+          PYTHONPATH: worker
+      - name: Test evaluation accounting without model inference
+        run: python -m unittest discover -s scripts/tests -v
+        env:
+          PYTHONPATH: worker
+      - name: Test Codex plugin without model inference
+        run: python -m unittest discover -s plugin_runtime/tests -v
+        env:
+          PYTHONPATH: plugin_runtime;worker
+      - run: python scripts/build_worker.py
+      - run: python scripts/package_extension.py --target win32-x64
+      - name: Verify the newly packaged Windows extension
+        run: python scripts/verify_extension_package.py --output artifacts/extension-verification.json
+      - run: python scripts/package_extension_source.py
+      - run: python scripts/package_codex_plugin.py
+      - run: python scripts/package_codex_plugin_source.py
+      - name: Checksum plugin release files
+        shell: pwsh
+        run: |
+          Get-ChildItem -LiteralPath artifacts -Filter 'between-the-lines-codex-*.zip' | Sort-Object Name | ForEach-Object {
+            $digest = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$digest  $($_.Name)"
+          } | Set-Content -LiteralPath artifacts/CODEX-PLUGIN-SHA256SUMS.txt -Encoding utf8
+      - name: Verify packaged hooks and MCP workflow without inference
+        run: python scripts/verify_codex_plugin.py --output artifacts/codex-plugin-native-check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: between-the-lines-win32-x64
+          path: |
+            artifacts/*.vsix
+            artifacts/between-the-lines-*-source.zip
+            artifacts/extension-verification.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: between-the-lines-codex-win32-x64
+          path: |
+            artifacts/between-the-lines-codex-*.zip
+            artifacts/CODEX-PLUGIN-SHA256SUMS.txt
+            artifacts/codex-plugin-native-check/report.json
