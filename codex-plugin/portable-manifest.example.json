@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "between-the-lines",
+  "version": "0.1.0",
+  "description": "Preserve coding-task intent in source comments, with captured originals and checked edits.",
+  "author": { "name": "Rohan Menon" },
+  "license": "MIT",
+  "keywords": ["code", "intent", "comments", "context"],
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "hooks": "./hooks/hooks.json",
+      "interface": {
+        "displayName": "between-the-lines",
+        "shortDescription": "Keep the task behind a code change close to its implementation.",
+        "longDescription": "Uses the active Codex model to write comments from captured tasks and verified Python or Java edits. Original context stays separate and inspectable. Windows x64 desktop build.",
+        "developerName": "Rohan Menon",
+        "category": "Developer Tools",
+        "capabilities": ["Read", "Write"]
+      }
+    }
+  }
+}

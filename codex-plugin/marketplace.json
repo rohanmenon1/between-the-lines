@@ -1,0 +1,12 @@
+{
+  "name": "between-the-lines-local",
+  "interface": { "displayName": "between-the-lines" },
+  "plugins": [
+    {
+      "name": "between-the-lines",
+      "source": { "source": "local", "path": "./codex-plugin" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Developer Tools"
+    }
+  ]
+}
