@@ -1,0 +1,1 @@
+{"name":"between-the-lines-minimal","version":"0.1.0","description":"Review and apply one intent-grounded Python comment using Codex and an AST check.","hooks":"./hooks/hooks.json"}

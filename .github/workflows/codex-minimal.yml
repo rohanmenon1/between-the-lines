@@ -1,0 +1,22 @@
+name: Minimal Codex plugin
+
+on:
+  push:
+    branches: [codex-plugin-minimal]
+    paths:
+      - 'codex-minimal/**'
+      - '.github/workflows/codex-minimal.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  approval-flow:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python codex-minimal/test_flow.py
