@@ -7,7 +7,7 @@ import sys
 
 from annotation import apply, approval_for, preview, source_path
 from hashlib import sha256
-from intent import lookup, read_records
+from intent import lookup, read_records, repository_root
 from tempfile import NamedTemporaryFile
 from turn import handle, read, save, state_path
 
@@ -24,7 +24,7 @@ def main():
         if args.action == "hook":
             print(json.dumps(handle(request)))
             return 0
-        workspace = Path.cwd().resolve(strict=True)
+        workspace = repository_root(Path.cwd())
         state_file = state_path(workspace, request["session"])
         state = read(state_file)
         if not state.get("requested"):

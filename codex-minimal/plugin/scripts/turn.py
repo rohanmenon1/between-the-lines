@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from annotation import source_path
+from intent import repository_root
 
 
 def state_path(root, session):
@@ -35,7 +36,11 @@ def read(path):
 
 def handle(event):
     name = event["hook_event_name"]
-    root = Path(event["cwd"]).resolve(strict=True)
+    cwd = Path(event["cwd"]).resolve(strict=True)
+    try:
+        root = repository_root(cwd)
+    except ValueError:
+        return {}
     session, turn = event["session_id"], event["turn_id"]
     if not all(isinstance(value, str) and value for value in (session, turn)):
         return {}
@@ -63,8 +68,9 @@ def handle(event):
         targets = [line.removeprefix("*** Update File: ") for line in patch.splitlines()
                    if line.startswith("*** Update File: ")]
         if len(targets) == 1 and targets[0].endswith(".py"):
-            file = source_path(root, targets[0])
-            state["pending"] = {"path": targets[0], "tool": event["tool_use_id"],
+            relative = (cwd.relative_to(root) / targets[0]).as_posix()
+            file = source_path(root, relative)
+            state["pending"] = {"path": file.relative_to(root).as_posix(), "tool": event["tool_use_id"],
                                 "before": sha256(file.read_bytes()).hexdigest()}
             save(path, state)
     elif name == "PostToolUse":

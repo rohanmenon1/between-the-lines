@@ -12,6 +12,14 @@ FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
 DEFINITIONS = (*FUNCTIONS, ast.ClassDef)
 
 
+def repository_root(directory):
+    cwd = directory.resolve(strict=True)
+    root = next((p for p in (cwd, *cwd.parents) if (p / ".git").exists()), None)
+    if root is None:
+        raise ValueError("Open a Git repository to look up intent.")
+    return root
+
+
 def parse(source):
     return ast.parse(source.decode("utf-8-sig"), type_comments=True)
 

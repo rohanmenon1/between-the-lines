@@ -49,12 +49,14 @@ class FlowTest(unittest.TestCase):
             file = root / "fixture.py"
             (root / ".git").mkdir()
             file.write_bytes(b"def total(items):\n    return 0\n")
+            nested = root / "subproject"
+            nested.mkdir()
             env = dict(os.environ, HOME=directory, USERPROFILE=directory)
             ids = {"session_id": "test-session", "turn_id": "edit", "cwd": directory}
             session = {"session": "test-session"}
 
             def request(action, data):
-                run = subprocess.run([sys.executable, str(SCRIPT), action], cwd=root,
+                run = subprocess.run([sys.executable, str(SCRIPT), action], cwd=nested,
                                      env=env, input=json.dumps(data), capture_output=True,
                                      text=True, timeout=10)
                 return json.loads(run.stdout)

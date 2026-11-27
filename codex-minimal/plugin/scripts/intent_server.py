@@ -7,7 +7,7 @@ import sys
 # Isolated Python ignores PYTHONPATH and the working directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from annotation import source_path
-from intent import lookup
+from intent import lookup, repository_root
 
 
 TOOL = {
@@ -43,8 +43,10 @@ def call(root, params):
 
 
 def serve():
-    cwd = Path.cwd().resolve()
-    root = next((p for p in (cwd, *cwd.parents) if (p / ".git").exists()), None)
+    try:
+        root = repository_root(Path.cwd())
+    except ValueError:
+        root = None
     initialized = False
     for line in sys.stdin.buffer:
         request_id = None
