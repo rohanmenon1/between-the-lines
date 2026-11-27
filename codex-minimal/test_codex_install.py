@@ -7,6 +7,35 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
+
+
+def submit_prompt(cli, env, project):
+    """Let Codex dispatch its real prompt hook with a loopback Responses fixture."""
+    class Reply(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            for kind in ("response.created", "response.completed"):
+                data = {"type": kind, "response": {"id": "r_fixture", "object": "response",
+                        "status": "completed" if kind.endswith("completed") else "in_progress",
+                        "model": "fixture", "output": []}}
+                self.wfile.write(("data: " + json.dumps(data) + "\n\n").encode())
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), Reply) as http:
+        Thread(target=http.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{http.server_port}/v1"
+            provider = ('model_providers.fixture={name="fixture",wire_api="responses",'
+                        f'base_url="{url}",requires_openai_auth=false}}')
+            args = ["-c", provider, "-c", 'model_provider="fixture"', "-c", 'model="fixture"',
+                    "exec", "--ephemeral", "--dangerously-bypass-hook-trust", "Inspect example."]
+            subprocess.run(cli + args, cwd=project, env=env, check=True, timeout=60)
+        finally:
+            http.shutdown()
 
 
 def main(executable, bundle):
@@ -26,12 +55,7 @@ def main(executable, bundle):
         for args in (["plugin", "marketplace", "add", str(catalog)],
                      ["plugin", "add", "between-the-lines-minimal@between-the-lines-preview"]):
             subprocess.run(cli + args, cwd=project, env=env, check=True, timeout=60)
-        # Supply a prompt event to the packaged hook. The MCP call below goes
-        # through the real client and the server launched from its install cache.
-        hook = {"hook_event_name": "UserPromptSubmit", "cwd": str(project),
-                "session_id": "install-check", "turn_id": "first", "prompt": "Inspect example."}
-        subprocess.run([sys.executable, str(catalog / "plugin/scripts/annotate.py"), "hook"],
-                       input=json.dumps(hook), text=True, cwd=project, env=env, check=True)
+        submit_prompt(cli, env, project)
         with subprocess.Popen(cli + ["app-server", "--listen", "stdio://"], cwd=project,
                               env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               text=True, encoding="utf-8") as server:
