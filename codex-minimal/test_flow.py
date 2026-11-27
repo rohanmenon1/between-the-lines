@@ -48,7 +48,8 @@ class FlowTest(unittest.TestCase):
             root = Path(directory)
             file = root / "fixture.py"
             (root / ".git").mkdir()
-            file.write_bytes(b"def total(items):\n    return 0\n")
+            unchanged = b"\ndef untouched(): return 42\n"
+            file.write_bytes(b"def total(items):\n    return 0\n" + unchanged)
             nested = root / "subproject"
             nested.mkdir()
             env = dict(os.environ, HOME=directory, USERPROFILE=directory)
@@ -77,12 +78,14 @@ class FlowTest(unittest.TestCase):
             intent.write_text(json.dumps({"helper.py": {"sum_items": {
                 "intent": "Support iterators.", "ast_hash": "sha256:" + digest}}}),
                 encoding="utf-8")
-            changed = b"from helper import sum_items as add\n\ndef total(items):\n    return add(items)\n"
+            changed = b"from helper import sum_items as add\n\ndef total(items):\n    return add(items)\n" + unchanged
             file.write_bytes(changed)
             hook("PostToolUse", **tool)
             self.assertEqual(hook("Stop")["decision"], "block")
             self.assertEqual(hook("Stop"), {})
             self.assertEqual(request("context", session)["prompt"], reason)
+            self.assertEqual(request("context", session)["changed_symbols"], ["total"])
+            self.assertIn("not changed", request("context", {**session, "line": 6})["error"])
             context = {**session, "line": 3}
             calls = request("context", context)["intent"]["calls"]
             self.assertEqual([(call["status"], call.get("intent")) for call in calls],

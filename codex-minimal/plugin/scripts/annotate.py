@@ -35,10 +35,13 @@ def main():
         if sha256(source).hexdigest() != state["edit"]["after"]:
             raise ValueError("The captured edit is stale.")
         if args.action == "context":
-            result = {"path": relative, "prompt": state["prompt"]}
+            changed = state["edit"].get("symbols", [])
+            result = {"path": relative, "prompt": state["prompt"], "changed_symbols": changed}
             if "line" in request:
                 line = request["line"]
                 result["intent"] = lookup(workspace, relative, source, line)
+                if result["intent"]["symbol"] not in changed:
+                    raise ValueError("This function was not changed by the captured edit.")
                 state["lookup"] = {"line": line, "result": result["intent"]}
                 save(state_file, state)
             print(json.dumps(result))

@@ -7,7 +7,16 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from annotation import source_path
-from intent import repository_root
+from intent import FUNCTIONS, definitions, fingerprint, parse, repository_root
+
+
+def function_versions(source):
+    """A duplicate qualified name cannot identify a unique intent record."""
+    versions = {}
+    for name, node in definitions(parse(source)):
+        if isinstance(node, FUNCTIONS):
+            versions[name] = None if name in versions else fingerprint(node)
+    return versions
 
 
 def state_path(root, session):
@@ -77,16 +86,35 @@ def handle(event):
         if len(targets) == 1 and targets[0].endswith(".py"):
             relative = (cwd.relative_to(root) / targets[0]).as_posix()
             file = source_path(root, relative)
-            state["pending"] = {"path": file.relative_to(root).as_posix(), "tool": event["tool_use_id"],
-                                "before": sha256(file.read_bytes()).hexdigest()}
+            relative = file.relative_to(root).as_posix()
+            source = file.read_bytes()
+            try:
+                original = function_versions(source)
+            except (ValueError, SyntaxError):
+                return {}
+            baseline = state.setdefault("baseline", {})
+            baseline.setdefault(relative, original)
+            state["pending"] = {"path": relative, "tool": event["tool_use_id"],
+                                "before": sha256(source).hexdigest()}
             save(path, state)
     elif name == "PostToolUse":
         pending = state.get("pending", {})
         if pending.get("tool") and pending["tool"] == event.get("tool_use_id"):
             file = source_path(root, pending["path"])
-            digest = sha256(file.read_bytes()).hexdigest()
+            source = file.read_bytes()
+            digest = sha256(source).hexdigest()
             if digest != pending["before"]:
-                state["edit"] = {"path": pending["path"], "after": digest}
+                try:
+                    versions = function_versions(source)
+                except (ValueError, SyntaxError):
+                    versions = {}
+                before = state["baseline"][pending["path"]]
+                changed = [name for name, version in versions.items()
+                           if version and version != before.get(name) and before.get(name, True) is not None]
+                if changed:
+                    state["edit"] = {"path": pending["path"], "after": digest, "symbols": changed}
+                elif state.get("edit", {}).get("path") == pending["path"]:
+                    state.pop("edit")
             state.pop("pending")
             save(path, state)
     elif name == "Stop" and state.get("edit") and not event.get("stop_hook_active"):
