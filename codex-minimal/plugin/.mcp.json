@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "between-the-lines": {
+      "command": "python",
+      "args": ["-I", "-B", "${PLUGIN_ROOT}/scripts/intent_server.py"]
+    }
+  }
+}

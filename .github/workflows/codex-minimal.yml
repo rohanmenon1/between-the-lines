@@ -20,3 +20,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: python codex-minimal/test_flow.py
+      - name: Measure MCP memory and lookup latency
+        run: ./codex-minimal/measure_server.ps1
+        shell: pwsh
