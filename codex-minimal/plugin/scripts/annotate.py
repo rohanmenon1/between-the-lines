@@ -7,7 +7,8 @@ import sys
 
 from annotation import apply, approval_for, preview, source_path
 from hashlib import sha256
-from intent import lookup
+from intent import lookup, read_records
+from tempfile import NamedTemporaryFile
 from turn import handle, read, save, state_path
 
 
@@ -43,7 +44,7 @@ def main():
             print(json.dumps(result))
             return 0
         context = state.get("draft_lookup") if args.action == "apply" else state.get("lookup")
-        if context and lookup(workspace, relative, source, context["line"]) != context["result"]:
+        if args.action == "preview" and context and lookup(workspace, relative, source, context["line"]) != context["result"]:
             raise ValueError("The intent context changed. Review a new preview.")
         if args.action == "preview":
             fields = {key: request[key] for key in ("line", "comment", "evidence")}
@@ -52,15 +53,59 @@ def main():
             checked = preview(source, prompt=state["prompt"], **fields)
             state["draft"] = fields
             state["draft_lookup"] = context
-            state["approval_id"] = approval_for(path, checked)
+            target = context["result"]
+            previous = read_records(workspace).get(target["path"], {}).get(target["symbol"])
+            entry = {"intent": fields["comment"].strip(), "ast_hash": target["ast_hash"]}
+            change = {"path": target["path"], "symbol": target["symbol"], "before": previous, "after": entry}
+            state["intent_change"] = change
+            state["source_approval"] = approval_for(path, checked)
+            state["approval_id"] = sha256(json.dumps([state["source_approval"], change, context],
+                                                     sort_keys=True).encode()).hexdigest()
             state.pop("approved_turn", None)
             save(state_file, state)
-            result = {"diff": checked.diff, "evidence": checked.evidence,
+            result = {"diff": checked.diff, "intent_change": change, "evidence": checked.evidence,
                       "approval_id": state["approval_id"]}
         else:
             if not state.get("approved_turn") or request["approval_id"] != state["approval_id"]:
                 raise ValueError("The user has not approved this preview.")
-            apply(workspace, relative, state["approval_id"], prompt=state["prompt"], **state["draft"])
+            # Serialize plugin writers; merge unrelated approved records under the lock.
+            change = state["intent_change"]
+            lock = workspace / ".intent.json.lock"
+            with lock.open("x"):
+                pass
+            try:
+                records = read_records(workspace)
+                group = records.setdefault(change["path"], {})
+                if not isinstance(group, dict) or group.get(change["symbol"]) != change["before"]:
+                    raise ValueError("The intent record changed. Review a new preview.")
+                if lookup(workspace, relative, source, context["line"]) != context["result"]:
+                    raise ValueError("The intent context changed. Review a new preview.")
+                group[change["symbol"]] = change["after"]
+                serialized = (json.dumps(records, indent=2, sort_keys=True) + "\n").encode()
+                if len(serialized) > 1048576:
+                    raise ValueError("The updated intent map exceeds 1 MiB.")
+                with NamedTemporaryFile(dir=workspace, delete=False) as stream:
+                    staged = Path(stream.name)
+                try:
+                    staged.write_bytes(serialized)
+                    # Publish the map first. A failed map write leaves the source untouched.
+                    map_file = workspace / "intent.json"
+                    prior_bytes = map_file.read_bytes() if map_file.exists() else None
+                    staged.replace(map_file)
+                    try:
+                        apply(workspace, relative, state["source_approval"], prompt=state["prompt"], **state["draft"])
+                    except (ValueError, OSError):
+                        if map_file.read_bytes() == serialized:
+                            if prior_bytes is None:
+                                map_file.unlink()
+                            else:
+                                staged.write_bytes(prior_bytes)
+                                staged.replace(map_file)
+                        raise
+                finally:
+                    staged.unlink(missing_ok=True)
+            finally:
+                lock.unlink()
             state_file.unlink()
             result = {"applied": True}
         print(json.dumps(result))

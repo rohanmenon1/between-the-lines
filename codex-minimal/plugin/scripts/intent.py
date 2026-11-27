@@ -97,15 +97,7 @@ def record(records, path, symbol, definition):
     return item
 
 
-def lookup(root, relative, source, line=None, *, symbol=None):
-    tree = parse(source)
-    relative = source_path(root, relative).relative_to(root).as_posix()
-    matches = [(name, node) for name, node in definitions(tree)
-               if (name == symbol if symbol is not None else
-                   isinstance(node, FUNCTIONS) and node.lineno == line)]
-    if len(matches) != 1:
-        raise ValueError("Select one unambiguous Python definition.")
-    name, function = matches[0]
+def read_records(root):
     file = root / "intent.json"
     if file.is_symlink():
         raise ValueError("intent.json must be a regular repository file.")
@@ -119,6 +111,19 @@ def lookup(root, relative, source, line=None, *, symbol=None):
         records = {}
     if not isinstance(records, dict):
         raise ValueError("intent.json must map paths to symbol records.")
+    return records
+
+
+def lookup(root, relative, source, line=None, *, symbol=None):
+    tree = parse(source)
+    relative = source_path(root, relative).relative_to(root).as_posix()
+    matches = [(name, node) for name, node in definitions(tree)
+               if (name == symbol if symbol is not None else
+                   isinstance(node, FUNCTIONS) and node.lineno == line)]
+    if len(matches) != 1:
+        raise ValueError("Select one unambiguous Python definition.")
+    name, function = matches[0]
+    records = read_records(root)
 
     targets = resolve(root, relative, tree)
     parsed = {relative: dict(definitions(tree))}

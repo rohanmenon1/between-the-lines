@@ -38,13 +38,14 @@ Keep approved intent in `intent.json` at the repository root. For example:
 }
 ```
 
-After reviewing a function's intent, copy its path, symbol and fingerprint
-from the line-specific `context` output into the map and commit it with Git.
+The approval preview shows the source diff and the proposed intent record.
+Approval inserts the comment and writes its reviewed rationale and fingerprint
+to the map, creating the file on first use. Commit both changes together.
 Class methods use names such as `Billing.retry_charge`. The lookup supports
 direct calls to module-level definitions and explicit absolute
 `from ... import ...` bindings in root-layout Python repos. It verifies up to 32
 distinct calls per preview. Stale intent is withheld, and changing the lookup
-result after preview requires a new review. The plugin reads this map.
+result after preview requires a new review.
 
 Run `python codex-minimal/test_flow.py` from the repository root to exercise
 the harness with fixture events. This test does not launch Codex.

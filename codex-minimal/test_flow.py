@@ -47,6 +47,7 @@ class FlowTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             file = root / "fixture.py"
+            (root / ".git").mkdir()
             file.write_bytes(b"def total(items):\n    return 0\n")
             env = dict(os.environ, HOME=directory, USERPROFILE=directory)
             ids = {"session_id": "test-session", "turn_id": "edit", "cwd": directory}
@@ -88,8 +89,11 @@ class FlowTest(unittest.TestCase):
                      "evidence": reason}
             self.assertIn("error", request("preview", {**draft, "evidence": "invented"}))
             proposal = request("preview", draft)
+            self.assertEqual(proposal["intent_change"]["after"]["intent"], draft["comment"])
+            self.assertNotIn("fixture.py", json.loads(intent.read_bytes()))
             approval = {**session, "approval_id": proposal["approval_id"]}
             self.assertIn("error", request("apply", approval))
+
             self.assertEqual(file.read_bytes(), changed)
             hook("UserPromptSubmit", turn_id="approval", prompt="Apply " + proposal["approval_id"])
             helper.write_bytes(callee.replace(b"sum(items)", b"0"))
@@ -102,6 +106,17 @@ class FlowTest(unittest.TestCase):
             self.assertIn("stale", request("apply", approval)["error"])
             file.write_bytes(changed)
             self.assertEqual(request("apply", approval), {"applied": True})
+            self.assertIn("helper.py", json.loads(intent.read_bytes()))
+            messages = [
+                {"id": 1, "method": "initialize", "params": {}},
+                {"id": 2, "method": "tools/call", "params": {"name": "lookup_intent",
+                 "arguments": {"path": "fixture.py", "symbol": "total"}}},
+            ]
+            run = subprocess.run([sys.executable, "-I", "-B", str(SCRIPT.with_name("intent_server.py"))],
+                                 input="".join(json.dumps(dict(m, jsonrpc="2.0")) + "\n" for m in messages),
+                                 cwd=root, text=True, capture_output=True, check=True, timeout=10)
+            fresh = json.loads(json.loads(run.stdout.splitlines()[-1])["result"]["content"][0]["text"])
+            self.assertEqual((fresh["status"], fresh["intent"]), ("current", draft["comment"]))
             self.assertIn(b"# Sum the items", file.read_bytes())
             self.assertEqual(ast.dump(ast.parse(changed)), ast.dump(ast.parse(file.read_bytes())))
             self.assertIn("error", request("apply", approval))
