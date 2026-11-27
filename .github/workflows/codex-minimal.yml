@@ -26,3 +26,12 @@ jobs:
       - name: Measure MCP memory and lookup latency
         run: ./codex-minimal/measure_server.ps1
         shell: pwsh
+      - name: Package and exercise installed Codex plugin
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'between-the-lines-codex.zip'
+          git archive --format=zip --output=$zip HEAD:codex-minimal .agents plugin README.md
+          npm install --prefix "$env:RUNNER_TEMP/codex-cli" @openai/codex@0.172.0
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $exe = Get-ChildItem "$env:RUNNER_TEMP/codex-cli" -Recurse -Filter codex.exe | Select-Object -First 1
+          python codex-minimal/test_codex_install.py $exe.FullName $zip
