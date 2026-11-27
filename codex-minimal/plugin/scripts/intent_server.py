@@ -41,7 +41,7 @@ def call(root, params):
             if selected_root != root and not workspace_marker(selected_root).is_file():
                 raise ValueError("The prompt hook has not registered this checkout.")
             root = selected_root
-            relative = str(candidate.relative_to(root))
+            relative = str(candidate.parent.resolve(strict=True).relative_to(root) / candidate.name)
         if root is None:
             raise ValueError("Use an absolute Python path in the active checkout.")
         path = source_path(root, relative)

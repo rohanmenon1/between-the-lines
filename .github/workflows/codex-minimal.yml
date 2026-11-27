@@ -35,3 +35,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $exe = Get-ChildItem "$env:RUNNER_TEMP/codex-cli" -Recurse -Filter codex.exe | Select-Object -First 1
           python codex-minimal/test_codex_install.py $exe.FullName $zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-plugin-tested
+          path: ${{ runner.temp }}/between-the-lines-codex.zip
+          if-no-files-found: error
