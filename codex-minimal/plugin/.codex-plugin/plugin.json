@@ -1,1 +1,1 @@
-{"name":"between-the-lines-minimal","version":"0.2.0","description":"Look up reviewed Python intent before edits and preview grounded comments afterward.","mcpServers":"./.mcp.json","hooks":"./hooks/hooks.json"}
+{"name":"between-the-lines","version":"0.2.1","description":"Look up reviewed Python intent before edits and preview grounded comments afterward.","mcpServers":"./.mcp.json","hooks":"./hooks/hooks.json"}

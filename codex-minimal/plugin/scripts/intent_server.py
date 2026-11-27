@@ -52,6 +52,8 @@ def call(root, params):
 
 
 def serve():
+    manifest = Path(__file__).resolve().parents[1] / ".codex-plugin/plugin.json"
+    version = json.loads(manifest.read_text(encoding="utf-8"))["version"]
     try:
         root = repository_root(Path.cwd())
     except ValueError:
@@ -75,7 +77,7 @@ def serve():
                 requested = params.get("protocolVersion")
                 result = {"protocolVersion": requested if requested in versions else versions[0],
                           "capabilities": {"tools": {}},
-                          "serverInfo": {"name": "between-the-lines", "version": "0.2.0"}}
+                          "serverInfo": {"name": "between-the-lines", "version": version}}
                 initialized = True
             elif method == "ping":
                 result = {}

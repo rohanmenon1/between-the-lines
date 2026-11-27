@@ -16,7 +16,7 @@ include rationale. Codex can choose this tool before editing. No repository
 instructions or prior annotation turn are required.
 
 1. Run `codex plugin marketplace add <absolute path to codex-minimal>`.
-2. Install **between-the-lines-minimal** in the Codex Plugins Directory.
+2. Install **between-the-lines** in the Codex Plugins Directory.
 3. Review and approve the four hooks in a trusted workspace.
 4. Ask Codex to update an existing Python function using `apply_patch`. Give a
    reason or constraint worth preserving. Review the proposed diff and

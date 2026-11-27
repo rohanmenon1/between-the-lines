@@ -53,7 +53,7 @@ def main(executable, bundle):
         env = dict(os.environ, CODEX_HOME=str(home))
         cli = [executable, "--no-daemon", "-C", str(project)]
         for args in (["plugin", "marketplace", "add", str(catalog)],
-                     ["plugin", "add", "between-the-lines-minimal@between-the-lines-preview"]):
+                     ["plugin", "add", "between-the-lines@between-the-lines"]):
             subprocess.run(cli + args, cwd=project, env=env, check=True, timeout=60)
         submit_prompt(cli, env, project)
         with subprocess.Popen(cli + ["app-server", "--listen", "stdio://"], cwd=project,
