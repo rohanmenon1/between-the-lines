@@ -20,6 +20,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: python codex-minimal/test_flow.py
+      - name: Measure native Windows stdio process overhead
+        run: ./codex-minimal/measure_windows_floor.ps1
+        shell: pwsh
       - name: Measure MCP memory and lookup latency
         run: ./codex-minimal/measure_server.ps1
         shell: pwsh
