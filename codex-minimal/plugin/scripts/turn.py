@@ -15,6 +15,10 @@ def state_path(root, session):
     return Path.home() / ".between-the-lines" / (key + ".json")
 
 
+def workspace_marker(root):
+    return Path.home() / ".between-the-lines" / "workspaces" / sha256(os.fsencode(root)).hexdigest()
+
+
 def save(path, state):
     path.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(dir=path.parent, delete=False) as stream:
@@ -51,6 +55,9 @@ def handle(event):
         if not isinstance(prompt, str) or not (0 < len(prompt) <= 16000):
             path.unlink(missing_ok=True)
             return {}
+        marker = workspace_marker(root)
+        if not marker.exists():
+            save(marker, str(root))
         if (state.get("approval_id") and prompt == "Apply " + state["approval_id"]):
             state["approved_turn"] = turn
             save(path, state)

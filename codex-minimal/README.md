@@ -8,7 +8,9 @@ must be on PATH as `python` for MCP and as `py -3` on Windows or `python3` elsew
 
 Open Codex in the project’s Git checkout. The plugin advertises the read-only
 `lookup_intent(path, symbol)` tool immediately, including in a fresh session.
-For example, `lookup_intent("billing/retry.py", "RetryPolicy.retry_charge")`
+Use the absolute path to the Python file in the current checkout. The prompt
+hook registers the checkout when the first user message arrives. For example,
+`lookup_intent("C:/work/shop/billing/retry.py", "RetryPolicy.retry_charge")`
 returns the method's record and up to 32 direct calls. Only current entries
 include rationale. Codex can choose this tool before editing. No repository
 instructions or prior annotation turn are required.

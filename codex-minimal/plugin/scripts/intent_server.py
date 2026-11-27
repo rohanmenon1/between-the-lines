@@ -8,6 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from annotation import source_path
 from intent import lookup, repository_root
+from turn import workspace_marker
 
 
 TOOL = {
@@ -17,7 +18,7 @@ TOOL = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "description": "Repository-relative Python file."},
+            "path": {"type": "string", "description": "Absolute Python file in the active Git checkout."},
             "symbol": {"type": "string", "description": "Function, class, or Class.method."},
         },
         "required": ["path", "symbol"], "additionalProperties": False,
@@ -28,15 +29,23 @@ TOOL = {
 
 def call(root, params):
     try:
-        if root is None:
-            raise ValueError("Open a Git repository to look up intent.")
         args = params.get("arguments")
         if (params.get("name") != TOOL["name"] or not isinstance(args, dict)
                 or set(args) != {"path", "symbol"}
                 or not all(isinstance(v, str) and 0 < len(v) <= 4096 for v in args.values())):
             raise ValueError("lookup_intent requires a path and symbol.")
-        path = source_path(root, args["path"])
-        result = lookup(root, args["path"], path.read_bytes(), symbol=args["symbol"])
+        relative = args["path"]
+        if Path(relative).is_absolute():
+            candidate = Path(relative)
+            selected_root = repository_root(candidate.parent)
+            if selected_root != root and not workspace_marker(selected_root).is_file():
+                raise ValueError("The prompt hook has not registered this checkout.")
+            root = selected_root
+            relative = str(candidate.relative_to(root))
+        if root is None:
+            raise ValueError("Use an absolute Python path in the active checkout.")
+        path = source_path(root, relative)
+        result = lookup(root, relative, path.read_bytes(), symbol=args["symbol"])
         return {"content": [{"type": "text", "text": json.dumps(result)}]}
     except (ValueError, OSError, SyntaxError, RecursionError) as error:
         return {"content": [{"type": "text", "text": str(error)[:400]}], "isError": True}
