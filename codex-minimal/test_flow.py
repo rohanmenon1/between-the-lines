@@ -37,7 +37,7 @@ class FlowTest(unittest.TestCase):
                                  capture_output=True, check=True, timeout=10)
             init, listing, call = [json.loads(line)["result"] for line in run.stdout.splitlines()]
             self.assertIn("tools", init["capabilities"])
-            self.assertEqual([tool["name"] for tool in listing["tools"]], ["lookup_intent"])
+            self.assertEqual([tool["name"] for tool in listing["tools"]], ["lookup_intent", "search_intent"])
             value = json.loads(call["content"][0]["text"])
             self.assertEqual(value["intent"], "Preserve the existing return contract.")
             self.assertEqual(value["calls"][0]["status"], "stale")

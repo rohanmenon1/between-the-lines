@@ -1,5 +1,11 @@
 # Between the Lines for Codex
 
+Use `search_intent(workspace, query)` to find functions by behavior before you
+know their names. Search ranks up to five current, reviewed records by matching
+words in the intent and symbol name. Each hit includes its source location and
+matching terms. Inspect the function before editing. Unrecorded functions and
+synonyms can be missed.
+
 Preview one Python comment grounded in the user's original task. Codex writes
 the text and the harness compares the AST before and after inserting it.
 

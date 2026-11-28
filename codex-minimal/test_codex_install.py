@@ -1,5 +1,7 @@
 """Verify the release ZIP through the installed Codex CLI without inference."""
 
+import ast
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -82,6 +84,23 @@ def main(executable, bundle):
                 assert not result.get("isError"), result
                 value = json.loads(result["content"][0]["text"])
                 assert (value["symbol"], value["status"]) == ("example", "missing"), value
+                source = "def ascii_name(name): return name.encode('ascii')\n"
+                (project / "names.py").write_text(source, encoding="utf-8")
+                digest = sha256(ast.dump(ast.parse(source).body[0]).encode()).hexdigest()
+                (project / "intent.json").write_text(json.dumps({"names.py": {"ascii_name": {
+                    "intent": "Encode names as ASCII.", "ast_hash": "sha256:" + digest}}}), encoding="utf-8")
+                search = {"threadId": session["thread"]["id"], "server": "between-the-lines",
+                          "tool": "search_intent", "arguments": {"workspace": str(project),
+                          "query": "find function that parses names into ascii"}}
+                def candidates(number):
+                    reply = request(number, "mcpServer/tool/call", search)
+                    assert not reply.get("isError"), reply
+                    return json.loads(reply["content"][0]["text"])["candidates"]
+                hits = candidates(4)
+                assert [hit["symbol"] for hit in hits] == ["ascii_name"], hits
+                assert hits[0]["matched_terms"] == ["ascii", "name"], hits
+                (project / "names.py").write_text(source.replace("ascii')", "utf8')"), encoding="utf-8")
+                assert candidates(5) == []
             finally:
                 server.stdin.close()
                 try:

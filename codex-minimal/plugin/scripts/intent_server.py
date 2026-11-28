@@ -26,10 +26,31 @@ TOOL = {
     "annotations": {"readOnlyHint": True, "openWorldHint": False},
 }
 
+SEARCH = {
+    "name": "search_intent",
+    "description": "Find candidate Python functions by words in their names and reviewed intent. "
+                   "Inspect the returned code before relying on a match. Results can be empty.",
+    "inputSchema": {"type": "object", "properties": {
+        "workspace": {"type": "string", "description": "Absolute active Git checkout path."},
+        "query": {"type": "string", "minLength": 1, "maxLength": 512}},
+        "required": ["workspace", "query"], "additionalProperties": False},
+    "annotations": {"readOnlyHint": True, "openWorldHint": False},
+}
+
 
 def call(root, params):
     try:
         args = params.get("arguments")
+        if params.get("name") == SEARCH["name"]:
+            from intent_search import search
+            if (not isinstance(args, dict) or set(args) != {"workspace", "query"}
+                    or not isinstance(args["workspace"], str) or not Path(args["workspace"]).is_absolute()
+                    or not isinstance(args["query"], str) or not 0 < len(args["query"].strip()) <= 512):
+                raise ValueError("Provide an absolute checkout path and a query of up to 512 characters.")
+            selected = repository_root(Path(args["workspace"]))
+            if selected != root and not workspace_marker(selected).is_file():
+                raise ValueError("The prompt hook has not registered this checkout.")
+            return {"content": [{"type": "text", "text": json.dumps(search(selected, args["query"]))}]}
         if (params.get("name") != TOOL["name"] or not isinstance(args, dict)
                 or set(args) != {"path", "symbol"}
                 or not all(isinstance(v, str) and 0 < len(v) <= 4096 for v in args.values())):
@@ -84,7 +105,7 @@ def serve():
             elif not initialized:
                 raise ValueError("Initialize the MCP session first.")
             elif method == "tools/list":
-                result = {"tools": [TOOL]}
+                result = {"tools": [TOOL, SEARCH]}
             elif method == "tools/call":
                 result = call(root, params)
             else:
