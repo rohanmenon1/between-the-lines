@@ -6,8 +6,7 @@ import sys
 
 # Isolated Python ignores PYTHONPATH and the working directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from annotation import source_path
-from intent import lookup, repository_root
+from intent import lookup, repository_root, search, source_path
 from turn import workspace_marker
 
 
@@ -42,7 +41,6 @@ def call(root, params):
     try:
         args = params.get("arguments")
         if params.get("name") == SEARCH["name"]:
-            from intent_search import search
             if (not isinstance(args, dict) or set(args) != {"workspace", "query"}
                     or not isinstance(args["workspace"], str) or not Path(args["workspace"]).is_absolute()
                     or not isinstance(args["query"], str) or not 0 < len(args["query"].strip()) <= 512):

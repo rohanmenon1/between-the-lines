@@ -1,15 +1,92 @@
-"""Read a Codex hook event or annotation request on stdin."""
+"""Preview and apply reviewed comments for captured Codex edits."""
 
 import argparse
+import ast
+import difflib
 import json
-from pathlib import Path
+import os
+import re
+import stat
 import sys
-
-from annotation import apply, approval_for, preview, source_path
+from dataclasses import dataclass
 from hashlib import sha256
-from intent import lookup, read_records, repository_root
+from pathlib import Path
 from tempfile import NamedTemporaryFile
+
+from intent import lookup, read_records, repository_root, source_path
 from turn import handle, read, save, state_path
+
+
+@dataclass(frozen=True)
+class Preview:
+    approval_id: str
+    source: bytes
+    evidence: str
+    diff: str
+
+
+def preview(source: bytes, line: int, comment: str, prompt: str, evidence: str) -> Preview:
+    """Insert a single plain comment immediately above a function definition."""
+    if not comment.strip() or len(comment) > 240 or not comment.isprintable():
+        raise ValueError("Use one printable line of at most 240 characters.")
+    if not evidence.strip() or evidence not in prompt:
+        raise ValueError("Evidence must be an exact excerpt from the original prompt.")
+
+    text = source.decode("utf-8-sig")
+    tree = ast.parse(text, type_comments=True)
+    function = next(
+        (node for node in ast.walk(tree)
+         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.lineno == line),
+        None,
+    )
+    if function is None:
+        raise ValueError("Select the first line of a Python function definition.")
+
+    anchor = min([line, *(item.lineno for item in function.decorator_list)]) - 1
+    # Keep the original bytes, including mixed newline styles.
+    lines = re.findall(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$", text)
+    original = lines[anchor]
+    indent = original[:len(original) - len(original.lstrip(" \t"))]
+    newline = "\r\n" if original.endswith("\r\n") else "\r" if original.endswith("\r") else "\n"
+    updated = "".join([*lines[:anchor], indent + "# " + comment.strip() + newline, *lines[anchor:]])
+    changed = ast.parse(updated, type_comments=True)
+    if ast.dump(tree) != ast.dump(changed):
+        raise ValueError("The comment changes the Python AST.")
+    # AST equality omits source-position attributes. Type ignores carry their
+    # target line in the tree itself and are conservatively rejected if shifted.
+    encoding = "utf-8-sig" if source.startswith(b"\xef\xbb\xbf") else "utf-8"
+    diff = "".join(difflib.unified_diff(lines, updated.splitlines(keepends=True),
+                                      fromfile="before", tofile="after", n=2))
+    result = updated.encode(encoding)
+    identity = b"".join(sha256(part).digest() for part in
+                        (source, result, prompt.encode(), evidence.encode()))
+    return Preview(sha256(identity).hexdigest(), result, evidence, diff)
+
+
+def apply(workspace: Path, relative: str, approval_id: str, line: int,
+          comment: str, prompt: str, evidence: str) -> None:
+    """Rebuild a reviewed patch from the saved file and replace it atomically."""
+    path = source_path(workspace, relative)
+    source = path.read_bytes()
+    checked = preview(source, line, comment, prompt, evidence)
+    if approval_for(path, checked) != approval_id:
+        raise ValueError("The file or proposal changed. Review a new preview.")
+    target_mode = stat.S_IMODE(path.stat().st_mode)
+    with NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+        staged = Path(stream.name)
+        try:
+            stream.write(checked.source)
+            stream.close()
+            staged.chmod(target_mode)
+            if source_path(workspace, relative) != path or path.read_bytes() != source:
+                raise ValueError("The file changed. Review a new preview.")
+            os.replace(staged, path)
+        finally:
+            staged.unlink(missing_ok=True)
+
+
+def approval_for(path: Path, checked: Preview) -> str:
+    return sha256(bytes.fromhex(checked.approval_id) + os.fsencode(path)).hexdigest()
 
 
 def main():

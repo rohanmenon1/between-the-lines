@@ -6,8 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from annotation import source_path
-from intent import FUNCTIONS, definitions, fingerprint, parse, repository_root
+from intent import FUNCTIONS, definitions, fingerprint, parse, repository_root, source_path
 
 
 def function_versions(source):
