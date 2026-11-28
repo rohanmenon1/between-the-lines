@@ -2,6 +2,8 @@
 
 import ast
 import json
+import math
+import struct
 import re
 from collections import Counter
 from hashlib import sha256
@@ -175,48 +177,82 @@ def lookup(root, relative, source, line=None, *, symbol=None):
     return {**record(records, relative, name, function), "calls": calls}
 
 
-STOP = set("a an and are as at by code does find for from function functions in into is me method of or please return returns that the to which with".split())
+MODEL = Path(__file__).resolve().parents[1] / "model"
 
 
-def terms(text):
-    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
-    words = re.findall(r"[^\W_]+", text.casefold())
-    return {word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss")
-            else word for word in words if word not in STOP}
+class IntentEncoder:
+    """Pool pretrained WordPiece vectors, reading only the rows needed for a search."""
+
+    def __init__(self, weights):
+        self.weights = weights
+        size = int.from_bytes(weights.read(8), "little")
+        tensor = json.loads(weights.read(size))["embeddings"]
+        self.offset = 8 + size + tensor["data_offsets"][0]
+        self.row = struct.Struct("<" + str(tensor["shape"][1]) + "f")
+        self.dim = tensor["shape"][1]
+        with (MODEL / "vocab.txt").open(encoding="utf-8") as stream:
+            self.vocab = {word.rstrip("\r\n"): i for i, word in enumerate(stream)}
+
+    def encode(self, text):
+        vector = [0.0] * self.dim
+        for word in re.findall(r"[^\W_]+", text.casefold()):
+            if len(word) > 100:
+                continue
+            ids = []
+            start = 0
+            while start < len(word):
+                prefix = "##" if start else ""
+                for end in range(len(word), start, -1):
+                    index = self.vocab.get(prefix + word[start:end])
+                    if index is not None:
+                        ids.append(index)
+                        start = end
+                        break
+                else:
+                    ids.clear()
+                    break
+            for index in ids:
+                self.weights.seek(self.offset + self.row.size * index)
+                row = self.row.unpack(self.weights.read(self.row.size))
+                for i, value in enumerate(row):
+                    vector[i] += value
+        length = math.sqrt(sum(value * value for value in vector))
+        return [value / length for value in vector] if length else []
 
 
 def search(root, query):
-    wanted = terms(query)
-    candidates = []
     records = read_records(root)
-    for relative, group in records.items():
-        if not isinstance(group, dict):
-            continue
-        matches = []
-        for symbol, entry in group.items():
-            if not isinstance(entry, dict) or not isinstance(entry.get("intent"), str):
+    candidates = []
+    with (MODEL / "model.safetensors").open("rb") as weights:
+        encoder = IntentEncoder(weights)
+        wanted = encoder.encode(query)
+        for relative, group in records.items():
+            if not wanted or not isinstance(group, dict):
                 continue
-            names = terms(symbol)
-            overlap = wanted & (names | terms(entry["intent"]))
-            if overlap:
-                matches.append((symbol, overlap, len(wanted & names)))
-        if not matches:
-            continue
-        try:
-            file = source_path(root, relative)
-            nodes = {}
-            for name, node in definitions(parse(file.read_bytes())):
-                nodes[name] = None if name in nodes else node
-        except (ValueError, OSError, SyntaxError, RecursionError):
-            continue
-        for symbol, overlap, name_hits in matches:
-            node = nodes.get(symbol)
-            if not isinstance(node, FUNCTIONS):
+            ranked = []
+            for symbol, entry in group.items():
+                if not isinstance(entry, dict) or not isinstance(entry.get("intent"), str):
+                    continue
+                vector = encoder.encode(entry["intent"])
+                similarity = sum(a * b for a, b in zip(wanted, vector))
+                if similarity >= 0.25:
+                    ranked.append((symbol, similarity))
+            if not ranked:
                 continue
-            checked = record(records, relative, symbol, node)
-            if checked["status"] == "current":
-                item = {"path": str(file), "symbol": symbol, "line": node.lineno,
-                        "intent": checked["intent"], "matched_terms": sorted(overlap)}
-                candidates.append(((-len(overlap), -name_hits, relative, symbol), item))
-    candidates.sort(key=lambda pair: pair[0])
-    return {"candidates": [item for _, item in candidates[:5]]}
+            try:
+                file = source_path(root, relative)
+                nodes = {}
+                for name, node in definitions(parse(file.read_bytes())):
+                    nodes[name] = None if name in nodes else node
+            except (ValueError, OSError, SyntaxError, RecursionError):
+                continue
+            for symbol, score in ranked:
+                node = nodes.get(symbol)
+                if not isinstance(node, FUNCTIONS):
+                    continue
+                checked = record(records, relative, symbol, node)
+                if checked["status"] == "current":
+                    candidates.append({"path": str(file), "symbol": symbol, "line": node.lineno,
+                                       "intent": checked["intent"], "cosine_similarity": score})
+    candidates.sort(key=lambda item: (-item["cosine_similarity"], item["path"], item["symbol"]))
+    return {"candidates": candidates[:5]}

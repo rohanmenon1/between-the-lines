@@ -27,7 +27,7 @@ TOOL = {
 
 SEARCH = {
     "name": "search_intent",
-    "description": "Find candidate Python functions by words in their names and reviewed intent. "
+    "description": "Find candidate Python functions by embedding similarity to reviewed intent. "
                    "Inspect the returned code before relying on a match. Results can be empty.",
     "inputSchema": {"type": "object", "properties": {
         "workspace": {"type": "string", "description": "Absolute active Git checkout path."},

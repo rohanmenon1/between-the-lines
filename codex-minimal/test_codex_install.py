@@ -98,9 +98,18 @@ def main(executable, bundle):
                     return json.loads(reply["content"][0]["text"])["candidates"]
                 hits = candidates(4)
                 assert [hit["symbol"] for hit in hits] == ["ascii_name"], hits
-                assert hits[0]["matched_terms"] == ["ascii", "name"], hits
+                assert hits[0]["cosine_similarity"] > 0, hits
                 (project / "names.py").write_text(source.replace("ascii')", "utf8')"), encoding="utf-8")
                 assert candidates(5) == []
+                source = "def first(): return 1\ndef second(): return 2\n"
+                (project / "names.py").write_text(source, encoding="utf-8")
+                entries = {}
+                for node, intent in zip(ast.parse(source).body, ["Car.", "Banana."]):
+                    digest = sha256(ast.dump(node).encode()).hexdigest()
+                    entries[node.name] = {"intent": intent, "ast_hash": "sha256:" + digest}
+                (project / "intent.json").write_text(json.dumps({"names.py": entries}), encoding="utf-8")
+                search["arguments"]["query"] = "automobile"
+                assert candidates(6)[0]["symbol"] == "first"
             finally:
                 server.stdin.close()
                 try:
